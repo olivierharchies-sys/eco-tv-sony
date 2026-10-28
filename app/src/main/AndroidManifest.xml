@@ -8,7 +8,7 @@
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:usesCleartextTraffic="true"
-        android:theme="@android:style/Theme.Material.Light.DarkActionBar">
+        android:theme="@android:style/Theme.Material.NoActionBar">
 
         <activity
             android:name=".MainActivity"
@@ -24,15 +24,63 @@
             android:exported="false"
             android:label="Télécommande" />
 
+        <activity
+            android:name=".SourceActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="Source"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- Widget 1 : modes d'économie d'énergie -->
         <receiver
             android:name=".EcoWidgetProvider"
-            android:exported="true">
+            android:exported="true"
+            android:label="Éco TV · Modes">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/eco_widget_info" />
+        </receiver>
+
+        <!-- Widget 2 : marche / arrêt -->
+        <receiver
+            android:name=".PowerWidgetProvider"
+            android:exported="true"
+            android:label="Éco TV · Marche/Arrêt">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/power_widget_info" />
+        </receiver>
+
+        <!-- Widget 3 : source -->
+        <receiver
+            android:name=".SourceWidgetProvider"
+            android:exported="true"
+            android:label="Éco TV · Source">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/source_widget_info" />
+        </receiver>
+
+        <!-- Widget 4 : mini-télécommande volume / chaînes -->
+        <receiver
+            android:name=".MiniRemoteWidgetProvider"
+            android:exported="true"
+            android:label="Éco TV · Volume et chaînes">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/mini_widget_info" />
         </receiver>
 
     </application>

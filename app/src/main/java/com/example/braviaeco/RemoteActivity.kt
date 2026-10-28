@@ -2,284 +2,297 @@ package com.example.braviaeco
 
 import android.app.Activity
 import android.content.Intent
-import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
+import android.view.Gravity
 import android.view.HapticFeedbackConstants
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicInteger
 
-/** Télécommande complète : alimentation, source, navigation, volume, lecture, couleurs, chiffres. */
+/**
+ * Télécommande sur un seul écran (sans défilement) :
+ * marche/arrêt unique, un bouton Source, croix directionnelle, retour/accueil/options,
+ * volume et chaînes, lecture, puis clavier et pavé numérique.
+ */
 class RemoteActivity : Activity() {
 
-    private val io = Executors.newSingleThreadExecutor()
-    private val ui = Handler(Looper.getMainLooper())
-    private val pending = AtomicInteger(0)
-    private var lastToast = 0L
-
-    private lateinit var sourcesBox: LinearLayout
-    private lateinit var sourcesStatus: TextView
+    private lateinit var actions: TvActions
+    private lateinit var power: PowerButton
+    private lateinit var subtitle: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setTitle("Télécommande")
+        window.statusBarColor = Ui.BG
+        window.navigationBarColor = Ui.BG
+
+        actions = TvActions(this)
+        actions.onStateChanged = { renderState() }
 
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
-        root.setPadding(dp(12), dp(8), dp(12), dp(28))
+        root.setBackgroundColor(Ui.BG)
+        root.setPadding(dp(16), dp(10), dp(16), dp(14))
 
-        // --- Alimentation
-        root.addView(section("Alimentation"))
+        // --- Barre du haut : marche/arrêt, état, réglages
+        root.addView(buildTopBar(), LinearLayout.LayoutParams(MATCH, dp(56)))
+
+        // --- Source (un seul bouton)
+        val source = labeled(R.drawable.ic_input, "Source") { actions.showSourcePicker() }
+        val sourceLp = LinearLayout.LayoutParams(MATCH, dp(52))
+        sourceLp.topMargin = dp(10)
+        root.addView(source, sourceLp)
+
+        // --- Croix directionnelle (prend toute la place restante)
+        val dpad = DpadView(this) { key, repeat -> actions.sendKey(key, skipIfBusy = repeat) }
+        val dpadLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 0, 1f)
+        dpadLp.gravity = Gravity.CENTER_HORIZONTAL
+        dpadLp.topMargin = dp(10)
+        dpadLp.bottomMargin = dp(10)
+        root.addView(dpad, dpadLp)
+
+        // --- Retour / Accueil / Options
         root.addView(
             row(
-                button("Allumer") { runIo { BraviaClient.setPower(this, true) } },
-                button("Éteindre") { runIo { BraviaClient.setPower(this, false) } }
+                dp(52),
+                iconButton(R.drawable.ic_back, "Retour") { actions.sendKey("Return", "Back") },
+                iconButton(R.drawable.ic_home, "Accueil") { actions.sendKey("Home") },
+                iconButton(R.drawable.ic_more, "Options") { actions.sendKey("Options") }
             )
         )
 
-        // --- Source
-        root.addView(section("Source"))
-        sourcesStatus = TextView(this)
-        sourcesStatus.setPadding(dp(4), 0, dp(4), dp(4))
-        sourcesBox = LinearLayout(this)
-        sourcesBox.orientation = LinearLayout.VERTICAL
-        root.addView(sourcesStatus)
-        root.addView(sourcesBox)
-
-        // --- Navigation
-        root.addView(section("Navigation"))
-        root.addView(row(View(this), key("▲", "Up", repeat = true), View(this)))
-        root.addView(row(key("◀", "Left", repeat = true), key("OK", "Confirm"), key("▶", "Right", repeat = true)))
-        root.addView(row(View(this), key("▼", "Down", repeat = true), View(this)))
-        root.addView(row(key("Retour", "Return", "Back"), key("Accueil", "Home"), key("Options", "Options")))
-
-        // --- Volume / chaînes
-        root.addView(section("Volume et chaînes"))
-        root.addView(
-            row(
-                key("Vol −", "VolumeDown", repeat = true),
-                key("Muet", "Mute"),
-                key("Vol +", "VolumeUp", repeat = true)
-            )
+        // --- Volume / muet / chaînes
+        val volumeRow = row(
+            dp(116),
+            rocker("VOL", "VolumeUp", "VolumeDown"),
+            muteCell(),
+            rocker("CH", "ChannelUp", "ChannelDown")
         )
-        root.addView(
-            row(
-                key("Chaîne −", "ChannelDown", repeat = true),
-                key("Info", "Display"),
-                key("Chaîne +", "ChannelUp", repeat = true)
-            )
-        )
+        (volumeRow.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
+        root.addView(volumeRow)
 
         // --- Lecture
-        root.addView(section("Lecture"))
-        root.addView(
-            row(
-                key("Préc.", "Prev"),
-                key("«", "Rewind"),
-                key("Lecture", "Play"),
-                key("Pause", "Pause")
-            )
+        root.addView(mediaBar(), LinearLayout.LayoutParams(MATCH, dp(48)).also { it.topMargin = dp(10) })
+
+        // --- Clavier et pavé numérique
+        val bottom = row(
+            dp(52),
+            labeled(R.drawable.ic_keyboard, "Clavier") { actions.showKeyboard() },
+            labeled(R.drawable.ic_dialpad, "Chiffres") { actions.showNumpad() }
         )
-        root.addView(row(key("Stop", "Stop"), key("»", "Forward"), key("Suiv.", "Next")))
+        (bottom.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
+        root.addView(bottom)
 
-        // --- Couleurs
-        root.addView(section("Touches couleur"))
-        root.addView(
-            row(
-                tinted(key("", "Red"), "#D93025"),
-                tinted(key("", "Green"), "#1E8E3E"),
-                tinted(key("", "Yellow"), "#F9AB00"),
-                tinted(key("", "Blue"), "#1A73E8")
-            )
-        )
-
-        // --- Chiffres
-        root.addView(section("Chiffres"))
-        root.addView(row(key("1", "Num1"), key("2", "Num2"), key("3", "Num3")))
-        root.addView(row(key("4", "Num4"), key("5", "Num5"), key("6", "Num6")))
-        root.addView(row(key("7", "Num7"), key("8", "Num8"), key("9", "Num9")))
-        root.addView(row(key("Source TV", "Input"), key("0", "Num0"), key("Netflix", "Netflix")))
-
-        // --- Réglages
-        root.addView(section("Connexion"))
-        root.addView(
-            row(
-                button("Réglages / économie d'énergie") {
-                    startActivity(Intent(this, MainActivity::class.java))
-                }
-            )
-        )
-
-        val scroll = ScrollView(this)
-        scroll.addView(root)
-        setContentView(scroll)
-
-        loadSources()
+        setContentView(root)
+        renderState()
     }
 
-    override fun onPause() {
-        super.onPause()
-        ui.removeCallbacksAndMessages(null)
+    override fun onResume() {
+        super.onResume()
+        renderState()
+        actions.refreshPower()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        io.shutdownNow()
+        actions.close()
     }
 
-    // ------------------------------------------------------------------ sources
+    // ------------------------------------------------------------------ état affiché
 
-    private fun loadSources() {
-        sourcesStatus.text = "Chargement des sources…"
-        sourcesBox.removeAllViews()
-        io.execute {
-            val result = BraviaClient.getInputs(this)
-            ui.post {
-                if (isFinishing) return@post
-                val inputs = result.getOrNull()
-                sourcesStatus.text = if (inputs == null) {
-                    "Sources indisponibles : " + (result.exceptionOrNull()?.message ?: "erreur")
-                } else {
-                    ""
-                }
-                showSources(inputs ?: emptyList())
+    private fun renderState() {
+        val on = Prefs.lastPower(this)
+        power.on = on
+        val state = when (on) {
+            true -> "Allumée"
+            false -> "En veille"
+            null -> "État inconnu"
+        }
+        val source = Prefs.lastSource(this)
+        subtitle.text = if (on == true && source != null) "$state · $source" else state
+    }
+
+    // ------------------------------------------------------------------ morceaux d'interface
+
+    private fun buildTopBar(): LinearLayout {
+        val bar = LinearLayout(this)
+        bar.orientation = LinearLayout.HORIZONTAL
+        bar.gravity = Gravity.CENTER_VERTICAL
+
+        power = PowerButton(this)
+        power.contentDescription = "Marche / Arrêt"
+        power.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            actions.togglePower()
+        }
+        bar.addView(power, LinearLayout.LayoutParams(dp(56), dp(56)))
+
+        val texts = LinearLayout(this)
+        texts.orientation = LinearLayout.VERTICAL
+        texts.setPadding(dp(14), 0, dp(8), 0)
+
+        val title = TextView(this)
+        title.text = "Sony Bravia"
+        title.setTextColor(Ui.TEXT)
+        title.textSize = 17f
+        title.setTypeface(title.typeface, android.graphics.Typeface.BOLD)
+        texts.addView(title)
+
+        subtitle = TextView(this)
+        subtitle.setTextColor(Ui.DIM)
+        subtitle.textSize = 13f
+        texts.addView(subtitle)
+
+        bar.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        val gear = icon(R.drawable.ic_settings, Ui.DIM)
+        gear.setPadding(dp(10), dp(10), dp(10), dp(10))
+        gear.contentDescription = "Réglages"
+        gear.background = Ui.rounded(this, Color.TRANSPARENT, 22)
+        gear.setOnClickListener { startActivity(Intent(this, MainActivity::class.java)) }
+        bar.addView(gear, LinearLayout.LayoutParams(dp(44), dp(44)))
+
+        return bar
+    }
+
+    /** Double bouton + / − avec un libellé au milieu. Reste appuyé = répétition. */
+    private fun rocker(label: String, upKey: String, downKey: String): LinearLayout {
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.VERTICAL
+        box.background = Ui.rounded(this, Ui.SURFACE, 34)
+
+        val plus = icon(R.drawable.ic_add, Ui.TEXT)
+        plus.setPadding(dp(12), dp(12), dp(12), dp(12))
+        plus.contentDescription = "$label plus"
+        plus.background = Ui.rounded(this, Color.TRANSPARENT, 34)
+        Ui.holdRepeat(plus) { repeat -> actions.sendKey(upKey, skipIfBusy = repeat) }
+
+        val minus = icon(R.drawable.ic_remove, Ui.TEXT)
+        minus.setPadding(dp(12), dp(12), dp(12), dp(12))
+        minus.contentDescription = "$label moins"
+        minus.background = Ui.rounded(this, Color.TRANSPARENT, 34)
+        Ui.holdRepeat(minus) { repeat -> actions.sendKey(downKey, skipIfBusy = repeat) }
+
+        val text = TextView(this)
+        text.text = label
+        text.setTextColor(Ui.DIM)
+        text.textSize = 11f
+        text.gravity = Gravity.CENTER
+
+        box.addView(plus, LinearLayout.LayoutParams(MATCH, 0, 1f))
+        box.addView(text, LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT))
+        box.addView(minus, LinearLayout.LayoutParams(MATCH, 0, 1f))
+        return box
+    }
+
+    private fun muteCell(): FrameLayout {
+        val cell = FrameLayout(this)
+        val mute = icon(R.drawable.ic_mute, Ui.TEXT)
+        mute.setPadding(dp(18), dp(18), dp(18), dp(18))
+        mute.contentDescription = "Muet"
+        mute.background = Ui.rounded(this, Ui.SURFACE, 32)
+        mute.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            actions.sendKey("Mute")
+        }
+        val lp = FrameLayout.LayoutParams(dp(64), dp(64))
+        lp.gravity = Gravity.CENTER
+        cell.addView(mute, lp)
+        return cell
+    }
+
+    private fun mediaBar(): LinearLayout {
+        val bar = LinearLayout(this)
+        bar.orientation = LinearLayout.HORIZONTAL
+        bar.background = Ui.rounded(this, Ui.SURFACE, 24)
+
+        val keys = listOf(
+            Triple(R.drawable.ic_prev, "Précédent", "Prev"),
+            Triple(R.drawable.ic_rewind, "Retour rapide", "Rewind"),
+            Triple(R.drawable.ic_play, "Lecture", "Play"),
+            Triple(R.drawable.ic_pause, "Pause", "Pause"),
+            Triple(R.drawable.ic_forward, "Avance rapide", "Forward"),
+            Triple(R.drawable.ic_next, "Suivant", "Next")
+        )
+        for ((res, description, key) in keys) {
+            val b = icon(res, Ui.TEXT)
+            b.setPadding(dp(11), dp(11), dp(11), dp(11))
+            b.contentDescription = description
+            b.background = Ui.rounded(this, Color.TRANSPARENT, 24)
+            b.setOnClickListener {
+                it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                actions.sendKey(key)
             }
+            bar.addView(b, LinearLayout.LayoutParams(0, MATCH, 1f))
         }
+        return bar
     }
 
-    private fun showSources(inputs: List<TvInput>) {
-        sourcesBox.removeAllViews()
+    // ------------------------------------------------------------------ fabriques
 
-        val buttons = ArrayList<View>()
-        buttons.add(button("TV") { runIo { BraviaClient.sendIrcc(this, "Tv") } })
-        for (input in inputs) {
-            val b = button(input.display) {
-                runIo {
-                    val r = BraviaClient.setInput(this, input)
-                    if (r.isSuccess) ui.post { sourcesStatus.text = "Source : " + input.display }
-                    r
-                }
-            }
-            if (!input.connected) b.alpha = 0.55f
-            buttons.add(b)
-        }
-        buttons.add(button("Actualiser") { loadSources() })
+    private fun dp(value: Int): Int = Ui.dp(this, value)
 
-        var i = 0
-        while (i < buttons.size) {
-            val first = buttons[i]
-            val second: View = if (i + 1 < buttons.size) buttons[i + 1] else View(this)
-            sourcesBox.addView(row(first, second))
-            i += 2
-        }
+    private fun icon(res: Int, tint: Int): ImageView {
+        val v = ImageView(this)
+        v.setImageResource(res)
+        v.setColorFilter(tint)
+        v.scaleType = ImageView.ScaleType.FIT_CENTER
+        return v
     }
 
-    // ------------------------------------------------------------------ envoi
-
-    /** Exécute un appel réseau dans l'ordre. skipIfBusy : ignore la commande si la précédente n'est pas finie. */
-    private fun runIo(skipIfBusy: Boolean = false, work: () -> Result<*>) {
-        if (skipIfBusy && pending.get() > 0) return
-        pending.incrementAndGet()
-        io.execute {
-            val result = try {
-                work()
-            } finally {
-                pending.decrementAndGet()
-            }
-            val error = result.exceptionOrNull()
-            if (error != null) ui.post { toastError(error.message ?: "Échec") }
-        }
-    }
-
-    private fun toastError(message: String) {
-        val now = System.currentTimeMillis()
-        if (now - lastToast < 2500) return
-        lastToast = now
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-    }
-
-    // ------------------------------------------------------------------ fabrique de vues
-
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
-
-    private fun section(text: String): TextView {
-        val t = TextView(this)
-        t.text = text
-        t.textSize = 16f
-        t.setTypeface(t.typeface, android.graphics.Typeface.BOLD)
-        t.setPadding(dp(4), dp(18), dp(4), dp(4))
-        return t
-    }
-
-    private fun row(vararg views: View): LinearLayout {
-        val r = LinearLayout(this)
-        r.orientation = LinearLayout.HORIZONTAL
-        for (v in views) {
-            val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            lp.setMargins(dp(3), dp(3), dp(3), dp(3))
-            r.addView(v, lp)
-        }
-        return r
-    }
-
-    private fun button(label: String, onClick: () -> Unit): Button {
-        val b = Button(this)
-        b.text = label
-        b.textSize = 14f
-        b.setAllCaps(false)
-        b.minimumHeight = dp(52)
-        b.setOnClickListener {
+    private fun iconButton(res: Int, description: String, onClick: () -> Unit): ImageView {
+        val v = icon(res, Ui.TEXT)
+        v.setPadding(dp(14), dp(14), dp(14), dp(14))
+        v.contentDescription = description
+        v.background = Ui.rounded(this, Ui.SURFACE, 20)
+        v.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             onClick()
         }
-        return b
+        return v
     }
 
-    /** Touche de télécommande. [name] est le nom IRCC, [alias] un nom de repli éventuel. */
-    private fun key(label: String, name: String, alias: String? = null, repeat: Boolean = false): Button {
-        val names: Array<String> = if (alias == null) arrayOf(name) else arrayOf(name, alias)
-        val send = { runIo(skipIfBusy = repeat) { BraviaClient.sendIrcc(this, *names) } }
-
-        val b = button(label) { send() }
-        if (repeat) {
-            val ticker = object : Runnable {
-                override fun run() {
-                    send()
-                    ui.postDelayed(this, 140)
-                }
-            }
-            b.setOnClickListener(null)
-            b.setOnTouchListener { v, e ->
-                when (e.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        v.isPressed = true
-                        v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        send()
-                        ui.postDelayed(ticker, 450)
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        v.isPressed = false
-                        ui.removeCallbacks(ticker)
-                    }
-                }
-                true
-            }
+    /** Bouton « pilule » : icône + libellé. */
+    private fun labeled(res: Int, text: String, onClick: () -> Unit): LinearLayout {
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.HORIZONTAL
+        box.gravity = Gravity.CENTER
+        box.background = Ui.rounded(this, Ui.SURFACE, 26)
+        box.isClickable = true
+        box.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            onClick()
         }
-        return b
+
+        box.addView(icon(res, Ui.TEXT), LinearLayout.LayoutParams(dp(22), dp(22)))
+
+        val label = TextView(this)
+        label.text = text
+        label.setTextColor(Ui.TEXT)
+        label.textSize = 15f
+        label.setPadding(dp(10), 0, 0, 0)
+        box.addView(label, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        return box
     }
 
-    private fun tinted(b: Button, color: String): Button {
-        b.backgroundTintList = ColorStateList.valueOf(Color.parseColor(color))
-        return b
+    /** Ligne de hauteur fixe dont les enfants se partagent la largeur. */
+    private fun row(height: Int, vararg views: View): LinearLayout {
+        val r = LinearLayout(this)
+        r.orientation = LinearLayout.HORIZONTAL
+        val gap = dp(4)
+        for (v in views) {
+            val lp = LinearLayout.LayoutParams(0, MATCH, 1f)
+            lp.setMargins(gap, 0, gap, 0)
+            r.addView(v, lp)
+        }
+        r.layoutParams = LinearLayout.LayoutParams(MATCH, height)
+        return r
+    }
+
+    private companion object {
+        const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
     }
 }

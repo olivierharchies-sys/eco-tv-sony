@@ -47,6 +47,24 @@ object Prefs {
     fun saveMode(ctx: Context, mode: EcoMode) {
         sp(ctx).edit().putString("mode", mode.api).apply()
     }
+
+    /** Dernier état connu de la TV : true = allumée, false = en veille, null = inconnu. */
+    fun lastPower(ctx: Context): Boolean? = when (sp(ctx).getString("power", null)) {
+        "on" -> true
+        "off" -> false
+        else -> null
+    }
+
+    fun savePower(ctx: Context, on: Boolean) {
+        sp(ctx).edit().putString("power", if (on) "on" else "off").apply()
+    }
+
+    /** Dernière source choisie depuis l'appli (pour l'affichage). */
+    fun lastSource(ctx: Context): String? = sp(ctx).getString("source", null)
+
+    fun saveSource(ctx: Context, name: String) {
+        sp(ctx).edit().putString("source", name).apply()
+    }
 }
 
 /** Client minimal pour l'API Bravia (REST + IRCC). À appeler hors du thread principal. */
@@ -78,6 +96,36 @@ object BraviaClient {
 
     fun setPower(ctx: Context, on: Boolean): Result<Unit> = runCatching {
         call(ctx, "system", "setPowerStatus", JSONArray().put(JSONObject().put("status", on)))
+        Prefs.savePower(ctx, on)
+    }
+
+    /** true si la TV est allumée. Échoue si elle est injoignable. */
+    fun getPowerOn(ctx: Context): Result<Boolean> = runCatching {
+        val result = call(ctx, "system", "getPowerStatus", JSONArray())
+        val on = result.optJSONObject(0)?.optString("status") == "active"
+        Prefs.savePower(ctx, on)
+        on
+    }
+
+    /** Bascule marche/arrêt : renvoie le nouvel état demandé (true = allumée). */
+    fun togglePower(ctx: Context): Result<Boolean> = runCatching {
+        val current: Boolean? = try {
+            val result = call(ctx, "system", "getPowerStatus", JSONArray())
+            result.optJSONObject(0)?.optString("status") == "active"
+        } catch (e: Exception) {
+            null
+        }
+        val target = !(current ?: false)
+        call(ctx, "system", "setPowerStatus", JSONArray().put(JSONObject().put("status", target)))
+        Prefs.savePower(ctx, target)
+        target
+    }
+
+    // ---------------------------------------------------------------- clavier
+
+    /** Remplace le texte du champ de saisie affiché sur la TV. */
+    fun setText(ctx: Context, text: String): Result<Unit> = runCatching {
+        call(ctx, "appControl", "setTextForm", JSONArray().put(text))
         Unit
     }
 

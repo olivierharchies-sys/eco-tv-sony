@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/mini_vol_down"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginEnd="3dp"
+        android:layout_weight="1"
+        android:background="@drawable/btn_idle"
+        android:contentDescription="@string/mini_vol_down"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_vol_down" />
+
+    <ImageView
+        android:id="@+id/mini_mute"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="3dp"
+        android:layout_marginEnd="3dp"
+        android:layout_weight="1"
+        android:background="@drawable/btn_idle"
+        android:contentDescription="@string/mini_mute"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_mute" />
+
+    <ImageView
+        android:id="@+id/mini_vol_up"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="3dp"
+        android:layout_marginEnd="10dp"
+        android:layout_weight="1"
+        android:background="@drawable/btn_idle"
+        android:contentDescription="@string/mini_vol_up"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_vol_up" />
+
+    <TextView
+        android:id="@+id/mini_ch_down"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="3dp"
+        android:layout_weight="1"
+        android:background="@drawable/btn_idle"
+        android:gravity="center"
+        android:text="@string/mini_ch_down"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/mini_ch_up"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="3dp"
+        android:layout_weight="1"
+        android:background="@drawable/btn_idle"
+        android:gravity="center"
+        android:text="@string/mini_ch_up"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+</LinearLayout>

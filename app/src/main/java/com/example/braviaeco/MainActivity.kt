@@ -1,6 +1,7 @@
 package com.example.braviaeco
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
@@ -27,6 +28,11 @@ class MainActivity : Activity() {
         findViewById<Button>(R.id.btn_save).setOnClickListener {
             save()
             show("Réglages enregistrés")
+        }
+
+        findViewById<Button>(R.id.btn_open_remote).setOnClickListener {
+            save()
+            startActivity(Intent(this, RemoteActivity::class.java))
         }
 
         findViewById<Button>(R.id.btn_read).setOnClickListener {

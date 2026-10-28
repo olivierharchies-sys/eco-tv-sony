@@ -19,6 +19,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".RemoteActivity"
+            android:exported="false"
+            android:label="Télécommande" />
+
         <receiver
             android:name=".EcoWidgetProvider"
             android:exported="true">

@@ -88,6 +88,7 @@ class EcoWidgetProvider : AppWidgetProvider() {
                 "Éco TV · " + (current?.label ?: "?")
             )
             views.setOnClickPendingIntent(R.id.widget_title, broadcast(context, ACTION_REFRESH, null))
+            views.setOnClickPendingIntent(R.id.btn_remote, openRemote(context))
 
             BUTTONS.forEach { (mode, viewId) ->
                 views.setInt(
@@ -98,6 +99,17 @@ class EcoWidgetProvider : AppWidgetProvider() {
                 views.setOnClickPendingIntent(viewId, broadcast(context, ACTION_SET, mode))
             }
             return views
+        }
+
+        private fun openRemote(context: Context): PendingIntent {
+            val intent = Intent(context, RemoteActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            return PendingIntent.getActivity(
+                context,
+                7001,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
         }
 
         private fun broadcast(context: Context, action: String, mode: EcoMode?): PendingIntent {

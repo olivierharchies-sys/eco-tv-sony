@@ -16,6 +16,8 @@
     <string name="mode_picture_off">Image off</string>
 
     <string name="widget_title_default">Éco TV</string>
+    <string name="widget_remote">Télécommande</string>
+    <string name="open_remote">Ouvrir la télécommande</string>
     <string name="widget_description">Mode économie d\'énergie de la TV Sony : Off, Bas, Haut, Image off</string>
 
     <string name="help">Sur la TV : Réglages > Réseau > Configuration de l\'IP distante > Authentification > Authentification simple et clé pré-partagée. Définis la clé PSK, puis recopie-la ici avec l\'adresse IP de la TV. Ensuite, ajoute le widget « Éco TV Sony » sur l\'écran d\'accueil. Toucher le titre du widget relit le mode actuel de la TV.</string>

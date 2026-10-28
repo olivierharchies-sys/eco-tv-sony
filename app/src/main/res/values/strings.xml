@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Éco TV Sony</string>
+
+    <string name="connection_title">Connexion à la TV</string>
+    <string name="hint_ip">Adresse IP de la TV (ex. 192.168.1.50)</string>
+    <string name="hint_psk">Clé PSK (Pre-Shared Key)</string>
+    <string name="save">Enregistrer</string>
+
+    <string name="test_title">Tester les modes</string>
+    <string name="read_mode">Lire le mode actuel</string>
+
+    <string name="mode_off">Off</string>
+    <string name="mode_low">Bas</string>
+    <string name="mode_high">Haut</string>
+    <string name="mode_picture_off">Image off</string>
+
+    <string name="widget_title_default">Éco TV</string>
+    <string name="widget_description">Mode économie d\'énergie de la TV Sony : Off, Bas, Haut, Image off</string>
+
+    <string name="help">Sur la TV : Réglages > Réseau > Configuration de l\'IP distante > Authentification > Authentification simple et clé pré-partagée. Définis la clé PSK, puis recopie-la ici avec l\'adresse IP de la TV. Ensuite, ajoute le widget « Éco TV Sony » sur l\'écran d\'accueil. Toucher le titre du widget relit le mode actuel de la TV.</string>
+</resources>

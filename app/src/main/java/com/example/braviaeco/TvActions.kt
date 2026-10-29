@@ -2,6 +2,7 @@ package com.example.braviaeco
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
@@ -82,6 +83,28 @@ class TvActions(private val act: Activity) {
         PowerWidgetProvider.refreshAll(act)
         SourceWidgetProvider.refreshAll(act)
         ui.post { onStateChanged?.invoke() }
+    }
+
+    // ------------------------------------------------------------------ home, web, plus
+
+    /** Home du périphérique sélectionné (appareil HDMI-CEC) ; Home de la TV si la source est la TV. */
+    fun deviceHome() {
+        runIo { BraviaClient.sendDeviceHome(act) }
+    }
+
+    /** Home de la TV elle-même. */
+    fun tvHome() {
+        runIo { BraviaClient.sendTvHome(act) }
+    }
+
+    /** Ouvre sur la TV la page web et le navigateur réglés dans l'appli. */
+    fun openWeb() {
+        runIo { BraviaClient.openWeb(act) }
+    }
+
+    /** Écran avec toutes les autres possibilités de l'API. */
+    fun openMore() {
+        act.startActivity(Intent(act, MoreActivity::class.java))
     }
 
     // ------------------------------------------------------------------ marche / arrêt

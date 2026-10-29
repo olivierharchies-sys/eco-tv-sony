@@ -170,3 +170,82 @@ class MiniRemoteWidgetProvider : AppWidgetProvider() {
         }
     }
 }
+
+/** Widget 5 : télécommande complète (marche/arrêt, source, web, plus, flèches, Home, volume, chaînes). */
+class RemoteWidgetProvider : AppWidgetProvider() {
+
+    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+        ids.forEach { manager.updateAppWidget(it, buildViews(context)) }
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        if (intent.action != ACTION_KEY) return
+        val key = intent.getStringExtra(EXTRA_KEY) ?: return
+
+        val pending = goAsync()
+        thread {
+            try {
+                val result: Result<*> = when (key) {
+                    KEY_POWER -> BraviaClient.togglePower(context).also {
+                        if (it.isSuccess) PowerWidgetProvider.refreshAll(context)
+                    }
+                    KEY_DEVICE_HOME -> BraviaClient.sendDeviceHome(context)
+                    KEY_WEB -> BraviaClient.openWeb(context)
+                    else -> BraviaClient.sendIrcc(context, key)
+                }
+                result.exceptionOrNull()?.let { Ui.toast(context, it.message ?: "Échec") }
+            } finally {
+                pending.finish()
+            }
+        }
+    }
+
+    companion object {
+        const val ACTION_KEY = "com.example.braviaeco.REMOTE_KEY"
+        const val EXTRA_KEY = "key"
+        private const val KEY_POWER = "@power"
+        private const val KEY_DEVICE_HOME = "@devhome"
+        private const val KEY_WEB = "@web"
+
+        private fun buildViews(context: Context): RemoteViews {
+            val views = RemoteViews(context.packageName, R.layout.widget_remote)
+
+            val keys = listOf(
+                Pair(R.id.rc_power, KEY_POWER),
+                Pair(R.id.rc_web, KEY_WEB),
+                Pair(R.id.rc_back, "Return"),
+                Pair(R.id.rc_dev_home, KEY_DEVICE_HOME),
+                Pair(R.id.rc_tv_home, "Home"),
+                Pair(R.id.rc_options, "Options"),
+                Pair(R.id.rc_up, "Up"),
+                Pair(R.id.rc_left, "Left"),
+                Pair(R.id.rc_ok, "Confirm"),
+                Pair(R.id.rc_right, "Right"),
+                Pair(R.id.rc_down, "Down"),
+                Pair(R.id.rc_vol_down, "VolumeDown"),
+                Pair(R.id.rc_mute, "Mute"),
+                Pair(R.id.rc_vol_up, "VolumeUp"),
+                Pair(R.id.rc_ch_down, "ChannelDown"),
+                Pair(R.id.rc_ch_up, "ChannelUp")
+            )
+            keys.forEachIndexed { index, (viewId, key) ->
+                views.setOnClickPendingIntent(
+                    viewId,
+                    WidgetIntents.broadcast(
+                        context, RemoteWidgetProvider::class.java, ACTION_KEY, 9100 + index, EXTRA_KEY, key
+                    )
+                )
+            }
+            views.setOnClickPendingIntent(
+                R.id.rc_source,
+                WidgetIntents.activity(context, SourceActivity::class.java, 9201)
+            )
+            views.setOnClickPendingIntent(
+                R.id.rc_more,
+                WidgetIntents.activity(context, MoreActivity::class.java, 9202)
+            )
+            return views
+        }
+    }
+}

@@ -29,6 +29,9 @@ data class TvInput(
         get() = if (label.isNotBlank() && !label.equals(title, ignoreCase = true)) "$title · $label" else title
 }
 
+/** Une application installée sur la TV (navigateur, Netflix, YouTube…). */
+data class TvApp(val title: String, val uri: String)
+
 /** Réglages enregistrés sur le téléphone. */
 object Prefs {
     private const val FILE = "bravia_eco"
@@ -57,6 +60,33 @@ object Prefs {
 
     fun savePower(ctx: Context, on: Boolean) {
         sp(ctx).edit().putString("power", if (on) "on" else "off").apply()
+    }
+
+    // --- Bouton Web : page à ouvrir et navigateur (application de la TV) choisi
+    const val DEFAULT_WEB_URL = "https://www.google.com"
+    const val DEFAULT_DEVICE_HOME = "SyncMenu"
+
+    fun webUrl(ctx: Context): String = sp(ctx).getString("web_url", DEFAULT_WEB_URL) ?: DEFAULT_WEB_URL
+    fun webAppUri(ctx: Context): String = sp(ctx).getString("web_app_uri", "") ?: ""
+    fun webAppTitle(ctx: Context): String = sp(ctx).getString("web_app_title", "") ?: ""
+
+    fun saveWeb(ctx: Context, url: String) {
+        sp(ctx).edit().putString("web_url", url.trim()).apply()
+    }
+
+    fun saveWebApp(ctx: Context, app: TvApp?) {
+        sp(ctx).edit()
+            .putString("web_app_uri", app?.uri ?: "")
+            .putString("web_app_title", app?.title ?: "")
+            .apply()
+    }
+
+    // --- Bouton « Home appareil » : touche envoyée à l'appareil HDMI sélectionné (via HDMI-CEC)
+    fun deviceHomeKey(ctx: Context): String =
+        (sp(ctx).getString("device_home", DEFAULT_DEVICE_HOME) ?: DEFAULT_DEVICE_HOME).ifBlank { DEFAULT_DEVICE_HOME }
+
+    fun saveDeviceHomeKey(ctx: Context, key: String) {
+        sp(ctx).edit().putString("device_home", key.trim()).apply()
     }
 
     /** Dernière source choisie depuis l'appli (pour l'affichage). */
@@ -165,6 +195,117 @@ object BraviaClient {
             if (viaKey.isSuccess) return viaKey
         }
         return viaApi
+    }
+
+    // ---------------------------------------------------------------- Home, web, applications
+
+    /** Home de la TV elle-même. */
+    fun sendTvHome(ctx: Context): Result<Unit> = sendIrcc(ctx, "Home")
+
+    /**
+     * Home du périphérique sélectionné : si la source est la TV, c'est le Home de la TV ;
+     * sinon la touche réglée dans l'appli (par défaut « SyncMenu », le menu de l'appareil HDMI-CEC).
+     */
+    fun sendDeviceHome(ctx: Context): Result<Unit> {
+        val source = Prefs.lastSource(ctx)
+        if (source == "TV") return sendTvHome(ctx)
+        return sendIrcc(ctx, Prefs.deviceHomeKey(ctx))
+    }
+
+    fun getApps(ctx: Context): Result<List<TvApp>> = runCatching {
+        val result = call(ctx, "appControl", "getApplicationList", JSONArray())
+        val arr = result.optJSONArray(0) ?: JSONArray()
+        val list = ArrayList<TvApp>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val uri = o.optString("uri")
+            if (uri.isEmpty()) continue
+            list.add(TvApp(o.optString("title", uri), uri))
+        }
+        list.sortedBy { it.title.lowercase() }
+    }
+
+    fun launchApp(ctx: Context, uri: String, data: String? = null): Result<Unit> = runCatching {
+        val o = JSONObject().put("uri", uri)
+        if (!data.isNullOrEmpty()) o.put("data", data)
+        call(ctx, "appControl", "setActiveApp", JSONArray().put(o))
+        Unit
+    }
+
+    /** Ouvre la page web choisie, dans le navigateur choisi (ou le navigateur intégré par défaut). */
+    fun openWeb(ctx: Context): Result<Unit> {
+        var url = Prefs.webUrl(ctx).trim()
+        if (url.isEmpty()) return Result.failure(IllegalStateException("Aucune page web réglée"))
+        if (!url.contains("://")) url = "https://$url"
+
+        val appUri = Prefs.webAppUri(ctx)
+        if (appUri.isNotEmpty()) return launchApp(ctx, appUri, url)
+
+        val encoded = java.net.URLEncoder.encode(url, "UTF-8")
+        return launchApp(ctx, "localapp://webappruntime?url=$encoded")
+    }
+
+    // ---------------------------------------------------------------- volume, infos, redémarrage
+
+    /** Volume du haut-parleur : (volume, maximum, muet). */
+    fun getVolume(ctx: Context): Result<Triple<Int, Int, Boolean>> = runCatching {
+        val result = call(ctx, "audio", "getVolumeInformation", JSONArray())
+        val arr = result.optJSONArray(0) ?: JSONArray()
+        var chosen: JSONObject? = null
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            if (chosen == null || o.optString("target") == "speaker") chosen = o
+        }
+        val o = chosen ?: error("Volume indisponible")
+        Triple(o.optInt("volume"), o.optInt("maxVolume", 100), o.optBoolean("mute"))
+    }
+
+    fun setVolume(ctx: Context, volume: Int): Result<Unit> = runCatching {
+        val o = JSONObject().put("target", "speaker").put("volume", volume.toString())
+        call(ctx, "audio", "setAudioVolume", JSONArray().put(o))
+        Unit
+    }
+
+    /** Informations système et réseau de la TV, mises en forme « clé : valeur ». */
+    fun getInfo(ctx: Context): Result<String> = runCatching {
+        val sb = StringBuilder()
+        fun dump(title: String, obj: JSONObject?) {
+            if (obj == null) return
+            sb.append(title).append('\n')
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                val v = obj.opt(k)?.toString().orEmpty()
+                if (v.isNotEmpty()) sb.append("  ").append(k).append(" : ").append(v).append('\n')
+            }
+            sb.append('\n')
+        }
+        dump("Système", call(ctx, "system", "getSystemInformation", JSONArray()).optJSONObject(0))
+        runCatching {
+            dump("Interface", call(ctx, "system", "getInterfaceInformation", JSONArray()).optJSONObject(0))
+        }
+        runCatching {
+            dump("En cours de lecture", call(ctx, "avContent", "getPlayingContentInfo", JSONArray()).optJSONObject(0))
+        }
+        sb.toString().trim()
+    }
+
+    fun reboot(ctx: Context): Result<Unit> = runCatching {
+        call(ctx, "system", "requestReboot", JSONArray())
+        Unit
+    }
+
+    /** Noms de toutes les touches de télécommande connues de la TV. */
+    fun keyNames(ctx: Context): Result<List<String>> = runCatching {
+        val result = call(ctx, "system", "getRemoteControllerInfo", JSONArray())
+        val list = result.optJSONArray(1) ?: error("Liste des touches indisponible")
+        val names = ArrayList<String>()
+        for (i in 0 until list.length()) {
+            val n = list.optJSONObject(i)?.optString("name").orEmpty()
+            if (n.isNotEmpty()) names.add(n)
+        }
+        names.sortBy { it.lowercase() }
+        names
     }
 
     // ---------------------------------------------------------------- télécommande (IRCC)

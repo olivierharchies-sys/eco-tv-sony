@@ -14,7 +14,17 @@ Application Android qui pilote la TV en Wi-Fi local via l'API réseau Bravia de 
 - **Clavier** : ouvre le clavier du téléphone et envoie le texte tapé dans le champ actif de la TV.
 - **Chiffres** : ouvre un pavé numérique.
 
-## Les 4 widgets
+## Nouveautés de la version 1.3
+
+- **Écran verrouillé en portrait** : plus de basculement automatique.
+- **Home appareil** : envoie la touche réglée (défaut `SyncMenu`) à l'appareil HDMI sélectionné via HDMI-CEC ;
+  si la source est la TV, c'est le Home de la TV. **Home TV** : le Home de la TV, toujours.
+- **Web** : ouvre sur la TV la page et le navigateur choisis dans les réglages de l'appli.
+- **Plus** : applications de la TV, toutes les touches, volume précis, mode éco, infos TV, redémarrage.
+- **Widget « Éco TV · Télécommande »** : marche/arrêt, source, web, plus, retour, Home appareil, Home TV,
+  options, croix directionnelle, volume, muet, chaînes.
+
+## Les widgets
 
 Appui long sur l'écran d'accueil > **Widgets** > **Éco TV Sony** :
 

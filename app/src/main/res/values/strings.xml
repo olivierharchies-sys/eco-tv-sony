@@ -37,5 +37,7 @@
     <string name="mini_ch_up">CH +</string>
     <string name="widget_mini_description">Volume, muet et chaînes</string>
 
+    <string name="widget_remote_description">Télécommande complète : marche/arrêt, source, web, flèches, Home appareil et TV, volume, chaînes</string>
+
     <string name="help">Sur la TV : Réglages > Réseau > Configuration de l\'IP distante > Authentification > Authentification simple et clé pré-partagée. Définis la clé PSK, puis recopie-la ici avec l\'adresse IP de la TV. Ensuite, ajoute les widgets « Éco TV » depuis l\'écran d\'accueil.</string>
 </resources>

@@ -54,19 +54,20 @@ class RemoteActivity : Activity() {
         dpadLp.bottomMargin = dp(10)
         root.addView(dpad, dpadLp)
 
-        // --- Retour / Accueil / Options
+        // --- Retour / Home appareil / Home TV / Options
         root.addView(
             row(
-                dp(52),
-                iconButton(R.drawable.ic_back, "Retour") { actions.sendKey("Return", "Back") },
-                iconButton(R.drawable.ic_home, "Accueil") { actions.sendKey("Home") },
-                iconButton(R.drawable.ic_more, "Options") { actions.sendKey("Options") }
+                dp(60),
+                captioned(R.drawable.ic_back, "Retour") { actions.sendKey("Return", "Back") },
+                captioned(R.drawable.ic_devices_home, "Home appareil") { actions.deviceHome() },
+                captioned(R.drawable.ic_home, "Home TV") { actions.tvHome() },
+                captioned(R.drawable.ic_more, "Options") { actions.sendKey("Options") }
             )
         )
 
         // --- Volume / muet / chaînes
         val volumeRow = row(
-            dp(116),
+            dp(104),
             rocker("VOL", "VolumeUp", "VolumeDown"),
             muteCell(),
             rocker("CH", "ChannelUp", "ChannelDown")
@@ -79,12 +80,21 @@ class RemoteActivity : Activity() {
 
         // --- Clavier et pavé numérique
         val bottom = row(
-            dp(52),
+            dp(48),
             labeled(R.drawable.ic_keyboard, "Clavier") { actions.showKeyboard() },
             labeled(R.drawable.ic_dialpad, "Chiffres") { actions.showNumpad() }
         )
         (bottom.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
         root.addView(bottom)
+
+        // --- Web et toutes les autres commandes
+        val extra = row(
+            dp(48),
+            labeled(R.drawable.ic_language, "Web") { actions.openWeb() },
+            labeled(R.drawable.ic_apps, "Plus") { actions.openMore() }
+        )
+        (extra.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
+        root.addView(extra)
 
         setContentView(root)
         renderState()
@@ -253,6 +263,30 @@ class RemoteActivity : Activity() {
             onClick()
         }
         return v
+    }
+
+    /** Bouton carré : icône avec un petit libellé dessous. */
+    private fun captioned(res: Int, text: String, onClick: () -> Unit): LinearLayout {
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.VERTICAL
+        box.gravity = Gravity.CENTER
+        box.background = Ui.rounded(this, Ui.SURFACE, 20)
+        box.isClickable = true
+        box.contentDescription = text
+        box.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            onClick()
+        }
+        box.addView(icon(res, Ui.TEXT), LinearLayout.LayoutParams(dp(24), dp(24)))
+
+        val label = TextView(this)
+        label.text = text
+        label.setTextColor(Ui.DIM)
+        label.textSize = 10f
+        label.gravity = Gravity.CENTER
+        label.maxLines = 1
+        box.addView(label, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        return box
     }
 
     /** Bouton « pilule » : icône + libellé. */

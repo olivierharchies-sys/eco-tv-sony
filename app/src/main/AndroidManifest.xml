@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:usesCleartextTraffic="true"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".RemoteActivity"
+            android:exported="false"
+            android:label="Télécommande"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".MoreActivity"
+            android:exported="false"
+            android:label="Plus de commandes"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".SourceActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="Source"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- Widget 1 : modes d'économie d'énergie -->
+        <receiver
+            android:name=".EcoWidgetProvider"
+            android:exported="true"
+            android:label="Éco TV · Modes">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/eco_widget_info" />
+        </receiver>
+
+        <!-- Widget 2 : marche / arrêt -->
+        <receiver
+            android:name=".PowerWidgetProvider"
+            android:exported="true"
+            android:label="Éco TV · Marche/Arrêt">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/power_widget_info" />
+        </receiver>
+
+        <!-- Widget 3 : source -->
+        <receiver
+            android:name=".SourceWidgetProvider"
+            android:exported="true"
+            android:label="Éco TV · Source">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/source_widget_info" />
+        </receiver>
+
+        <!-- Widget 4 : mini-télécommande volume / chaînes -->
+        <receiver
+            android:name=".MiniRemoteWidgetProvider"
+            android:exported="true"
+            android:label="Éco TV · Volume et chaînes">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/mini_widget_info" />
+        </receiver>
+
+        <!-- Widget 5 : télécommande complète -->
+        <receiver
+            android:name=".RemoteWidgetProvider"
+            android:exported="true"
+            android:label="Éco TV · Télécommande">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/remote_widget_info" />
+        </receiver>
+
+    </application>
+</manifest>

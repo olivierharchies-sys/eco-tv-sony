@@ -14,6 +14,18 @@ Application Android qui pilote la TV en Wi-Fi local via l'API réseau Bravia de 
 - **Clavier** : ouvre le clavier du téléphone et envoie le texte tapé dans le champ actif de la TV.
 - **Chiffres** : ouvre un pavé numérique.
 
+## Nouveautés de la version 1.4
+
+Deux boutons ronds de part et d'autre de la flèche « haut » de la croix :
+
+- **À droite : applications de la TV.** Le menu affiche les applications que tu as choisies.
+  Au premier appui (ou via « Choisir les applications… », ou par un appui long), l'appli lit
+  la liste installée sur la TV et tu coches celles à garder.
+- **À gauche : applications du décodeur.** Le décodeur n'a pas d'API réseau : chaque raccourci
+  est une suite de touches que la TV lui relaie par HDMI-CEC (ex. Home → Bas → Droite → OK).
+  Dans « Gérer les applications… » : ajouter, modifier (bouton « Tester »), supprimer, et régler
+  une fois l'entrée HDMI du décodeur (l'appli y bascule d'abord si besoin).
+
 ## Nouveautés de la version 1.3
 
 - **Écran verrouillé en portrait** : plus de basculement automatique.

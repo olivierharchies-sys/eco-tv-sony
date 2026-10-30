@@ -79,6 +79,11 @@ class TvActions(private val act: Activity) {
         runIo(skipIfBusy) { BraviaClient.sendIrcc(act, *names) }
     }
 
+    /** Met à jour l'écran et les widgets après un changement de source fait ailleurs (raccourcis). */
+    fun notifyStateChanged() {
+        afterChange()
+    }
+
     private fun afterChange() {
         PowerWidgetProvider.refreshAll(act)
         SourceWidgetProvider.refreshAll(act)

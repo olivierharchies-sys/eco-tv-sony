@@ -21,6 +21,7 @@ import android.widget.TextView
 class RemoteActivity : Activity() {
 
     private lateinit var actions: TvActions
+    private lateinit var shortcuts: AppShortcuts
     private lateinit var power: PowerButton
     private lateinit var subtitle: TextView
 
@@ -31,6 +32,7 @@ class RemoteActivity : Activity() {
 
         actions = TvActions(this)
         actions.onStateChanged = { renderState() }
+        shortcuts = AppShortcuts(this, actions)
 
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
@@ -46,13 +48,24 @@ class RemoteActivity : Activity() {
         sourceLp.topMargin = dp(10)
         root.addView(source, sourceLp)
 
-        // --- Croix directionnelle (prend toute la place restante)
+        // --- Croix directionnelle (prend toute la place restante), avec deux boutons ronds
+        //     en haut : à gauche les applications du décodeur, à droite celles de la TV.
         val dpad = DpadView(this) { key, repeat -> actions.sendKey(key, skipIfBusy = repeat) }
-        val dpadLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 0, 1f)
-        dpadLp.gravity = Gravity.CENTER_HORIZONTAL
+        val decoderBtn = RoundButton.create(
+            this, R.drawable.ic_set_top_box, "Applications du décodeur",
+            onClick = { shortcuts.showDecoderApps() },
+            onLongClick = { shortcuts.showDecoderApps() }
+        )
+        val tvAppsBtn = RoundButton.create(
+            this, R.drawable.ic_apps, "Applications de la TV",
+            onClick = { shortcuts.showTvApps() },
+            onLongClick = { shortcuts.pickTvApps() }
+        )
+        val dpadArea = DpadArea(this, dpad, decoderBtn, tvAppsBtn, dp(50))
+        val dpadLp = LinearLayout.LayoutParams(MATCH, 0, 1f)
         dpadLp.topMargin = dp(10)
         dpadLp.bottomMargin = dp(10)
-        root.addView(dpad, dpadLp)
+        root.addView(dpadArea, dpadLp)
 
         // --- Retour / Home appareil / Home TV / Options
         root.addView(
@@ -109,6 +122,7 @@ class RemoteActivity : Activity() {
     override fun onDestroy() {
         super.onDestroy()
         actions.close()
+        shortcuts.close()
     }
 
     // ------------------------------------------------------------------ état affiché
@@ -328,5 +342,56 @@ class RemoteActivity : Activity() {
 
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
+    }
+}
+
+/**
+ * Zone de la croix directionnelle : la croix (carrée, centrée) et deux boutons ronds
+ * placés au-dessus de ses coins haut-gauche et haut-droite, de part et d'autre de la flèche « haut ».
+ */
+@android.annotation.SuppressLint("ViewConstructor")
+class DpadArea(
+    context: android.content.Context,
+    private val dpad: View,
+    private val leftBtn: View,
+    private val rightBtn: View,
+    private val buttonSize: Int
+) : ViewGroup(context) {
+
+    init {
+        addView(dpad)
+        addView(leftBtn)
+        addView(rightBtn)
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val w = MeasureSpec.getSize(widthMeasureSpec)
+        val h = MeasureSpec.getSize(heightMeasureSpec)
+        val side = if (h > 0) minOf(w, h) else w
+        val exact = MeasureSpec.makeMeasureSpec(side, MeasureSpec.EXACTLY)
+        dpad.measure(exact, exact)
+        val bs = MeasureSpec.makeMeasureSpec(buttonSize, MeasureSpec.EXACTLY)
+        leftBtn.measure(bs, bs)
+        rightBtn.measure(bs, bs)
+        setMeasuredDimension(w, if (h > 0) h else side)
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        val w = r - l
+        val h = b - t
+        val side = dpad.measuredWidth
+        val dl = (w - side) / 2
+        val dt = (h - side) / 2
+        dpad.layout(dl, dt, dl + side, dt + side)
+
+        // Centre des boutons sur les coins du carré de la croix, décalé vers l'extérieur
+        // s'il y a de la place, pour ne jamais toucher le cercle.
+        val half = buttonSize / 2
+        val out = minOf(dl, half)
+        val top = maxOf(0, dt - half / 2)
+        val lx = maxOf(0, dl - out)
+        val rx = minOf(w - buttonSize, dl + side + out - buttonSize)
+        leftBtn.layout(lx, top, lx + buttonSize, top + buttonSize)
+        rightBtn.layout(rx, top, rx + buttonSize, top + buttonSize)
     }
 }

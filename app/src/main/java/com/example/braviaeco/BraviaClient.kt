@@ -106,6 +106,16 @@ object Prefs {
         sp(ctx).edit().putString("target", if (target == Target.DECODER) "decoder" else "tv").apply()
     }
 
+    // --- Télécommande affichée : classique ou « Zen » (gestes)
+    const val STYLE_CLASSIC = "classic"
+    const val STYLE_ZEN = "zen"
+
+    fun remoteStyle(ctx: Context): String = sp(ctx).getString("remote_style", STYLE_CLASSIC) ?: STYLE_CLASSIC
+
+    fun saveRemoteStyle(ctx: Context, style: String) {
+        sp(ctx).edit().putString("remote_style", style).apply()
+    }
+
     fun touchpad(ctx: Context): Boolean = sp(ctx).getBoolean("touchpad", false)
 
     fun saveTouchpad(ctx: Context, on: Boolean) {

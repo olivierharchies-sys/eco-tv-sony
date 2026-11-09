@@ -193,7 +193,7 @@ object AtvRemote {
         "return" to 4, "back" to 4, "home" to 3, "options" to 82,
         "volumeup" to 24, "volumedown" to 25, "mute" to 164, "power" to 26,
         "channelup" to 166, "channeldown" to 167,
-        "play" to 126, "pause" to 127, "stop" to 86, "rewind" to 89, "forward" to 90,
+        "play" to 126, "pause" to 127, "playpause" to 85, "stop" to 86, "rewind" to 89, "forward" to 90,
         "next" to 87, "prev" to 88,
         "red" to 183, "green" to 184, "yellow" to 185, "blue" to 186,
         "epg" to 172, "guide" to 172, "display" to 165,

@@ -40,6 +40,13 @@ class RemoteActivity : Activity() {
         shortcuts = AppShortcuts(this, actions)
         scenes = SceneUi(this, actions)
 
+        // Télécommande « Zen » choisie : on lui passe la main (widgets et icône arrivent ici).
+        if (Prefs.remoteStyle(this) == Prefs.STYLE_ZEN) {
+            startActivity(Intent(this, Remote2Activity::class.java))
+            finish()
+            return
+        }
+
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
         root.setBackgroundColor(Ui.BG)
@@ -255,6 +262,17 @@ class RemoteActivity : Activity() {
         texts.addView(subtitle)
 
         bar.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        val swap = icon(R.drawable.ic_swap, Ui.DIM)
+        swap.setPadding(dp(10), dp(10), dp(10), dp(10))
+        swap.contentDescription = "Télécommande Zen"
+        swap.background = Ui.rounded(this, Color.TRANSPARENT, 22)
+        swap.setOnClickListener {
+            Prefs.saveRemoteStyle(this, Prefs.STYLE_ZEN)
+            startActivity(Intent(this, Remote2Activity::class.java))
+            finish()
+        }
+        bar.addView(swap, LinearLayout.LayoutParams(dp(44), dp(44)))
 
         val gear = icon(R.drawable.ic_settings, Ui.DIM)
         gear.setPadding(dp(10), dp(10), dp(10), dp(10))

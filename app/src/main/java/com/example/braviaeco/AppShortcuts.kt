@@ -77,8 +77,8 @@ object ShortcutPrefs {
 /**
  * Les deux menus d'applications de la télécommande :
  * - [showTvApps] : applications de la TV, choisies dans la liste lue sur la TV, lancées via l'API ;
- * - [showDecoderApps] : applications du décodeur, chacune définie par une suite de touches
- *   (le décodeur n'a pas d'API : la TV relaie les touches par HDMI-CEC).
+ * - [showDecoderApps] : raccourcis du décodeur, chacun défini par une suite de touches
+ *   (envoyées en Wi-Fi direct si le décodeur est associé, sinon relayées par la TV en HDMI-CEC).
  */
 class AppShortcuts(private val act: Activity, private val actions: TvActions) {
 
@@ -173,31 +173,12 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
             .show()
     }
 
-    /** Bascule sur l'entrée du décodeur si besoin, puis envoie les touches une à une. */
+    /** Prépare la TV (allumée, bonne entrée HDMI) puis envoie les touches au décodeur. */
     private fun runDecoderApp(app: DecoderApp) {
-        val inputUri = ShortcutPrefs.decoderInputUri(act)
-        val inputName = ShortcutPrefs.decoderInputName(act)
         actions.runIo {
-            runCatching {
-                if (inputUri.isNotEmpty() && Prefs.lastSource(act) != inputName) {
-                    BraviaClient.setInput(act, TvInput(inputUri, inputName, "", true)).getOrThrow()
-                    Prefs.saveSource(act, inputName)
-                    actions.notifyStateChanged()
-                    Thread.sleep(SWITCH_DELAY_MS)
-                }
-                sendSequence(app.keys)
-            }
-        }
-    }
-
-    private fun sendSequence(keys: List<String>) {
-        for ((i, key) in keys.withIndex()) {
-            if (key == ShortcutPrefs.WAIT) {
-                Thread.sleep(WAIT_STEP_MS)
-                continue
-            }
-            BraviaClient.sendIrcc(act, key).getOrThrow()
-            if (i < keys.size - 1) Thread.sleep(KEY_GAP_MS)
+            val r = Decoder.run(act, app.keys)
+            actions.notifyStateChanged()
+            r
         }
     }
 
@@ -345,23 +326,63 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
         val choices = KEY_CHOICES.map { (label, key) -> label to (if (key == DEVICE_HOME) deviceHome else key) }
         dialog()
             .setTitle("Ajouter une touche")
-            .setItems(choices.map { it.first }.toTypedArray()) { _, which -> onPick(choices[which].second) }
+            .setItems(choices.map { it.first }.toTypedArray()) { _, which ->
+                val key = choices[which].second
+                if (key == APP_PICK) pickDecoderLink(onPick) else onPick(key)
+            }
+            .show()
+    }
+
+    /** Étape « ouvrir une application du décodeur » (Wi-Fi direct uniquement). */
+    private fun pickDecoderLink(onPick: (String) -> Unit) {
+        if (!Decoder.wifi(act)) {
+            Ui.toast(act, "Associe d'abord le décodeur en Wi-Fi (Réglages de l'appli)")
+            return
+        }
+        val known = Decoder.KNOWN_APPS
+        val labels = (known.map { it.first } + "Autre (nom de paquet ou lien)…").toTypedArray()
+        dialog()
+            .setTitle("Application du décodeur")
+            .setItems(labels) { _, which ->
+                if (which < known.size) {
+                    onPick(Decoder.APP_PREFIX + known[which].second)
+                } else {
+                    val edit = EditText(act)
+                    edit.hint = "ex. com.netflix.ninja ou https://…"
+                    edit.setSingleLine(true)
+                    edit.setTextColor(Ui.TEXT)
+                    edit.setHintTextColor(Ui.DIM)
+                    val box = LinearLayout(act)
+                    val pad = Ui.dp(act, 20)
+                    box.setPadding(pad, Ui.dp(act, 8), pad, 0)
+                    box.addView(edit, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                    dialog()
+                        .setTitle("Paquet ou lien")
+                        .setView(box)
+                        .setPositiveButton("OK") { _, _ ->
+                            val text = edit.text.toString().trim()
+                            if (text.isNotEmpty()) onPick(Decoder.APP_PREFIX + text)
+                        }
+                        .setNegativeButton("Annuler", null)
+                        .show()
+                }
+            }
             .show()
     }
 
     private fun keyLabel(key: String): String {
+        if (key.startsWith(Decoder.APP_PREFIX)) return "▶ " + Decoder.appLabel(key.substring(Decoder.APP_PREFIX.length))
         if (key == Prefs.deviceHomeKey(act)) return "Home"
         return KEY_CHOICES.firstOrNull { it.second == key }?.first ?: key
     }
 
     private companion object {
         const val DEVICE_HOME = "__device_home__"
-        const val SWITCH_DELAY_MS = 2500L
-        const val KEY_GAP_MS = 450L
-        const val WAIT_STEP_MS = 1000L
+        const val APP_PICK = "__app__"
 
         /** Touches relayées au décodeur par la TV (HDMI-CEC). */
         val KEY_CHOICES = listOf(
+            "▶ Ouvrir une appli (Wi-Fi)…" to APP_PICK,
             "Home appareil" to DEVICE_HOME,
             "Haut" to "Up",
             "Bas" to "Down",

@@ -190,7 +190,7 @@ class RemoteWidgetProvider : AppWidgetProvider() {
                     KEY_POWER -> BraviaClient.togglePower(context).also {
                         if (it.isSuccess) PowerWidgetProvider.refreshAll(context)
                     }
-                    KEY_DEVICE_HOME -> BraviaClient.sendDeviceHome(context)
+                    KEY_DEVICE_HOME -> Decoder.home(context)
                     KEY_WEB -> BraviaClient.openWeb(context)
                     else -> BraviaClient.sendIrcc(context, key)
                 }

@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
@@ -15,6 +16,8 @@ import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.SeekBar
+import android.widget.TextView
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicInteger
@@ -75,8 +78,29 @@ class TvActions(private val act: Activity) {
         Ui.toast(act, message)
     }
 
+    /** Touche envoyée à la TV. */
     fun sendKey(vararg names: String, skipIfBusy: Boolean = false) {
         runIo(skipIfBusy) { BraviaClient.sendIrcc(act, *names) }
+    }
+
+    /**
+     * Touche envoyée à l'appareil choisi (TV ou décodeur). Le volume reste toujours sur la TV.
+     * repeat : répétition d'appui prolongé, ignorée si la précédente n'est pas finie.
+     */
+    fun key(vararg names: String, repeat: Boolean = false) {
+        val toDecoder = Prefs.target(act) == Target.DECODER && names.first() !in TV_ONLY
+        runIo(repeat) {
+            if (toDecoder) Decoder.sendKey(act, *names) else BraviaClient.sendIrcc(act, *names)
+        }
+    }
+
+    /** Choisit l'appareil visé par la croix, les chaînes et la lecture. */
+    fun selectTarget(target: Target) {
+        Prefs.saveTarget(act, target)
+        if (target == Target.DECODER && !Decoder.wifi(act)) {
+            Ui.toast(act, "Décodeur non associé en Wi-Fi : touches relayées par la TV (HDMI-CEC)")
+        }
+        ui.post { onStateChanged?.invoke() }
     }
 
     /** Met à jour l'écran et les widgets après un changement de source fait ailleurs (raccourcis). */
@@ -94,7 +118,7 @@ class TvActions(private val act: Activity) {
 
     /** Home du périphérique sélectionné (appareil HDMI-CEC) ; Home de la TV si la source est la TV. */
     fun deviceHome() {
-        runIo { BraviaClient.sendDeviceHome(act) }
+        runIo { Decoder.home(act) }
     }
 
     /** Home de la TV elle-même. */
@@ -126,7 +150,70 @@ class TvActions(private val act: Activity) {
     fun refreshPower() {
         exec {
             val r = BraviaClient.getPowerOn(act)
+            if (r.getOrNull() == true) {
+                // Source réelle : la télécommande vise d'elle-même la TV ou le décodeur.
+                val uri = BraviaClient.syncSource(act).getOrNull()
+                val decoderUri = ShortcutPrefs.decoderInputUri(act)
+                if (uri != null && decoderUri.isNotEmpty()) {
+                    val onDecoder = uri.equals(decoderUri, ignoreCase = true)
+                    Prefs.saveTarget(act, if (onDecoder) Target.DECODER else Target.TV)
+                }
+            }
             if (r.isSuccess) afterChange()
+        }
+    }
+
+    // ------------------------------------------------------------------ volume
+
+    /** Curseur de volume de la TV : le son suit le doigt. */
+    fun showVolume() {
+        exec {
+            val result = BraviaClient.getVolume(act)
+            ui.post {
+                if (act.isFinishing) return@post
+                val vol = result.getOrNull()
+                if (vol == null) {
+                    toast(result.exceptionOrNull()?.message ?: "Volume indisponible")
+                    return@post
+                }
+                val current = vol.first
+                val max = vol.second
+
+                val label = TextView(act)
+                label.text = "Volume : $current / $max"
+                label.setTextColor(Ui.TEXT)
+                label.textSize = 16f
+                label.gravity = Gravity.CENTER
+
+                val bar = SeekBar(act)
+                bar.max = max
+                bar.progress = current
+                bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, progress: Int, fromUser: Boolean) {
+                        label.text = "Volume : $progress / $max"
+                        if (fromUser) runIo(skipIfBusy = true) { BraviaClient.setVolume(act, progress) }
+                    }
+
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+
+                    override fun onStopTrackingTouch(s: SeekBar?) {
+                        val value = bar.progress
+                        runIo { BraviaClient.setVolume(act, value) }
+                    }
+                })
+
+                val box = LinearLayout(act)
+                box.orientation = LinearLayout.VERTICAL
+                box.setPadding(Ui.dp(act, 20), Ui.dp(act, 12), Ui.dp(act, 20), 0)
+                box.addView(label)
+                box.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+                AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
+                    .setTitle("Volume de la TV")
+                    .setView(box)
+                    .setNegativeButton("Fermer", null)
+                    .show()
+            }
         }
     }
 
@@ -254,7 +341,7 @@ class TvActions(private val act: Activity) {
                     b.background = Ui.rounded(act, Ui.SURFACE_HI, 16)
                     b.setOnClickListener {
                         it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        sendKey(if (label == "OK") "Confirm" else "Num$label")
+                        key(if (label == "OK") "Confirm" else "Num$label")
                     }
                     cell = b
                 }
@@ -268,7 +355,13 @@ class TvActions(private val act: Activity) {
         AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle("Pavé numérique")
             .setView(box)
+            .setNeutralButton("Chaînes favorites") { _, _ -> Favorites.show(act, this) }
             .setNegativeButton("Fermer", null)
             .show()
+    }
+
+    private companion object {
+        /** Le son sort toujours de la TV : ces touches ne partent jamais vers le décodeur. */
+        val TV_ONLY = setOf("VolumeUp", "VolumeDown", "Mute")
     }
 }

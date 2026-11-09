@@ -21,9 +21,23 @@ class MainActivity : Activity() {
     private lateinit var webField: EditText
     private lateinit var homeKeyField: EditText
     private lateinit var browserLabel: TextView
+    private lateinit var decoderIpField: EditText
+    private lateinit var decoderState: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Icône de l'appli : droit sur la télécommande dès que la TV est configurée
+        // (les réglages restent accessibles par la roue dentée).
+        if (savedInstanceState == null &&
+            intent?.hasCategory(Intent.CATEGORY_LAUNCHER) == true &&
+            Prefs.ip(this).isNotEmpty()
+        ) {
+            startActivity(Intent(this, RemoteActivity::class.java))
+            finish()
+            return
+        }
+
         setContentView(R.layout.activity_main)
 
         ipField = findViewById(R.id.field_ip)
@@ -54,6 +68,7 @@ class MainActivity : Activity() {
         }
 
         addExtraSettings()
+        addDeviceSettings()
 
         mapOf(
             R.id.test_off to EcoMode.OFF,
@@ -78,6 +93,9 @@ class MainActivity : Activity() {
         if (::webField.isInitialized) {
             Prefs.saveWeb(this, webField.text.toString())
             Prefs.saveDeviceHomeKey(this, homeKeyField.text.toString())
+        }
+        if (::decoderIpField.isInitialized) {
+            AtvPrefs.saveIp(this, decoderIpField.text.toString())
         }
     }
 
@@ -180,6 +198,182 @@ class MainActivity : Activity() {
         val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         lp.topMargin = Ui.dp(this, 16)
         column.addView(card, column.childCount - 1, lp)
+    }
+
+    // ------------------------------------------------------------------ TV et décodeur sur le réseau
+
+    private fun cardText(text: String, sizeSp: Float, color: Int, bold: Boolean): TextView {
+        val t = TextView(this)
+        t.text = text
+        t.setTextColor(color)
+        t.textSize = sizeSp
+        if (bold) t.setTypeface(t.typeface, android.graphics.Typeface.BOLD)
+        t.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 4))
+        return t
+    }
+
+    private fun cardButton(parent: LinearLayout, text: String, onClick: () -> Unit) {
+        val b = Button(this)
+        b.text = text
+        b.isAllCaps = false
+        b.setTextColor(Color.WHITE)
+        b.setBackgroundResource(R.drawable.btn_surface)
+        b.setOnClickListener { onClick() }
+        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 48))
+        lp.topMargin = Ui.dp(this, 8)
+        parent.addView(b, lp)
+    }
+
+    /** Message dans la zone d'état (en haut) et en bulle, visible où que l'on soit dans la page. */
+    private fun tell(text: String) {
+        show(text)
+        Ui.toast(this, text)
+    }
+
+    private fun showDecoderState() {
+        decoderState.text = if (Decoder.wifi(this)) {
+            "État : associé ✓ (touches envoyées en Wi-Fi direct)"
+        } else {
+            "État : non associé (touches relayées par la TV en HDMI-CEC)"
+        }
+    }
+
+    /** Carte « Détection de la TV » et « Décodeur en Wi-Fi direct », ajoutée avant le texte d'aide. */
+    private fun addDeviceSettings() {
+        val scroll = (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)) as ScrollView
+        val column = scroll.getChildAt(0) as LinearLayout
+
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.setBackgroundResource(R.drawable.card)
+        val pad = Ui.dp(this, 16)
+        card.setPadding(pad, pad, pad, pad)
+
+        card.addView(cardText("Détection de la TV", 17f, Color.WHITE, true))
+        card.addView(cardText("Cherche la TV Sony sur le Wi-Fi et remplit son adresse IP (TV allumée).", 12f, Ui.DIM, false))
+        cardButton(card, "Détecter la TV") { detectTv() }
+
+        val sep = TextView(this)
+        sep.setPadding(0, Ui.dp(this, 14), 0, 0)
+        card.addView(sep)
+
+        card.addView(cardText("Décodeur en Wi-Fi direct", 17f, Color.WHITE, true))
+        card.addView(cardText(
+            "Pilote le décodeur Android TV directement, sans passer par la TV ni le HDMI-CEC : " +
+                "plus fiable, et il peut ouvrir ses applications. Association une seule fois, " +
+                "avec le code affiché à l'écran (décodeur allumé, même Wi-Fi).",
+            12f, Ui.DIM, false
+        ))
+        decoderIpField = EditText(this)
+        decoderIpField.hint = "Adresse IP du décodeur"
+        decoderIpField.setText(AtvPrefs.ip(this))
+        decoderIpField.setSingleLine(true)
+        decoderIpField.setTextColor(Color.WHITE)
+        decoderIpField.setHintTextColor(Ui.DIM)
+        card.addView(decoderIpField)
+
+        decoderState = cardText("", 14f, Color.WHITE, false)
+        card.addView(decoderState)
+        showDecoderState()
+
+        cardButton(card, "Détecter le décodeur") { detectDecoder() }
+        cardButton(card, "Associer le décodeur") { pairDecoder() }
+        cardButton(card, "Dissocier") {
+            AtvPrefs.savePaired(this, false)
+            thread { AtvRemote.disconnect() }
+            showDecoderState()
+        }
+
+        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        lp.topMargin = Ui.dp(this, 16)
+        column.addView(card, column.childCount - 1, lp)
+    }
+
+    private fun detectTv() {
+        tell("Recherche de la TV…")
+        thread {
+            val result = Discovery.findTv()
+            runOnUiThread {
+                val ip = result.getOrNull()
+                if (ip == null) {
+                    tell("Échec : ${result.exceptionOrNull()?.message}")
+                } else {
+                    ipField.setText(ip)
+                    save()
+                    tell("TV trouvée : $ip")
+                }
+            }
+        }
+    }
+
+    private fun detectDecoder() {
+        save()
+        tell("Recherche du décodeur…")
+        Discovery.findDecoder(this, Prefs.ip(this)) { ip ->
+            if (!isFinishing) {
+                if (ip == null) {
+                    tell("Aucun décodeur trouvé : saisis son adresse IP (Réglages du décodeur > Réseau)")
+                } else {
+                    decoderIpField.setText(ip)
+                    save()
+                    tell("Décodeur trouvé : $ip")
+                }
+            }
+        }
+    }
+
+    private fun pairDecoder() {
+        save()
+        tell("Connexion au décodeur…")
+        thread {
+            val started = AtvRemote.startPairing(this)
+            runOnUiThread {
+                val pairing = started.getOrNull()
+                if (pairing == null || isFinishing) {
+                    pairing?.close()
+                    tell("Échec : ${started.exceptionOrNull()?.message}")
+                } else {
+                    show("Saisis le code affiché sur la TV")
+                    askPairingCode(pairing)
+                }
+            }
+        }
+    }
+
+    private fun askPairingCode(pairing: AtvRemote.Pairing) {
+        val edit = EditText(this)
+        edit.hint = "Code à 6 caractères"
+        edit.setSingleLine(true)
+        edit.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+            android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or
+            android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        edit.setTextColor(Color.WHITE)
+        edit.setHintTextColor(Ui.DIM)
+        val box = LinearLayout(this)
+        val pad = Ui.dp(this, 20)
+        box.setPadding(pad, Ui.dp(this, 8), pad, 0)
+        box.addView(edit, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("Code affiché sur la TV")
+            .setView(box)
+            .setCancelable(false)
+            .setPositiveButton("Valider") { _, _ ->
+                val code = edit.text.toString()
+                thread {
+                    val done = pairing.finish(this, code)
+                    runOnUiThread {
+                        if (done.isSuccess) {
+                            tell("Décodeur associé ✓")
+                        } else {
+                            tell("Échec : ${done.exceptionOrNull()?.message}")
+                        }
+                        showDecoderState()
+                    }
+                }
+            }
+            .setNegativeButton("Annuler") { _, _ -> thread { pairing.close() } }
+            .show()
     }
 
     private fun pickBrowser() {

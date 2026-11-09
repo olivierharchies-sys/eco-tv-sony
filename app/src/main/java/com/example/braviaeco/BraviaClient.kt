@@ -42,7 +42,16 @@ object Prefs {
     fun psk(ctx: Context): String = sp(ctx).getString("psk", "") ?: ""
 
     fun saveConnection(ctx: Context, ip: String, psk: String) {
-        sp(ctx).edit().putString("ip", ip.trim()).putString("psk", psk.trim()).apply()
+        val edit = sp(ctx).edit().putString("ip", ip.trim()).putString("psk", psk.trim())
+        if (ip.trim() != this.ip(ctx)) edit.remove("mac")
+        edit.apply()
+    }
+
+    /** Adresse MAC de la TV, lue quand elle est allumée : sert au réveil réseau (Wake-on-LAN). */
+    fun mac(ctx: Context): String = sp(ctx).getString("mac", "") ?: ""
+
+    fun saveMac(ctx: Context, mac: String) {
+        sp(ctx).edit().putString("mac", mac).apply()
     }
 
     fun lastMode(ctx: Context): EcoMode? = EcoMode.fromApi(sp(ctx).getString("mode", null))
@@ -87,6 +96,20 @@ object Prefs {
 
     fun saveDeviceHomeKey(ctx: Context, key: String) {
         sp(ctx).edit().putString("device_home", key.trim()).apply()
+    }
+
+    // --- Télécommande : appareil visé et type de pavé
+    fun target(ctx: Context): Target =
+        if (sp(ctx).getString("target", "tv") == "decoder") Target.DECODER else Target.TV
+
+    fun saveTarget(ctx: Context, target: Target) {
+        sp(ctx).edit().putString("target", if (target == Target.DECODER) "decoder" else "tv").apply()
+    }
+
+    fun touchpad(ctx: Context): Boolean = sp(ctx).getBoolean("touchpad", false)
+
+    fun saveTouchpad(ctx: Context, on: Boolean) {
+        sp(ctx).edit().putBoolean("touchpad", on).apply()
     }
 
     /** Dernière source choisie depuis l'appli (pour l'affichage). */
@@ -134,21 +157,132 @@ object BraviaClient {
         val result = call(ctx, "system", "getPowerStatus", JSONArray())
         val on = result.optJSONObject(0)?.optString("status") == "active"
         Prefs.savePower(ctx, on)
+        if (on) rememberMac(ctx)
         on
     }
 
-    /** Bascule marche/arrêt : renvoie le nouvel état demandé (true = allumée). */
-    fun togglePower(ctx: Context): Result<Boolean> = runCatching {
+    /**
+     * Bascule marche/arrêt : renvoie le nouvel état demandé (true = allumée).
+     * Si la TV ne répond pas (veille profonde), envoie un réveil réseau puis réessaie.
+     */
+    fun togglePower(ctx: Context): Result<Boolean> = runCatching { toggle(ctx) }
+
+    private fun powerParams(on: Boolean) = JSONArray().put(JSONObject().put("status", on))
+
+    private fun toggle(ctx: Context): Boolean {
         val current: Boolean? = try {
-            val result = call(ctx, "system", "getPowerStatus", JSONArray())
+            val result = call(ctx, "system", "getPowerStatus", JSONArray(), timeoutMs = 1500)
             result.optJSONObject(0)?.optString("status") == "active"
         } catch (e: Exception) {
             null
         }
-        val target = !(current ?: false)
-        call(ctx, "system", "setPowerStatus", JSONArray().put(JSONObject().put("status", target)))
-        Prefs.savePower(ctx, target)
-        target
+        if (current != null) {
+            if (current) rememberMac(ctx)
+            val target = !current
+            call(ctx, "system", "setPowerStatus", powerParams(target))
+            Prefs.savePower(ctx, target)
+            return target
+        }
+
+        return wake(ctx)
+    }
+
+    /** TV injoignable : réveil réseau, puis demande d'allumage. Renvoie true ou échoue. */
+    private fun wake(ctx: Context): Boolean {
+        if (Prefs.ip(ctx).isEmpty()) error("Adresse IP de la TV non configurée")
+        if (!wakeOnLan(ctx)) error("TV injoignable : vérifie le Wi-Fi et l'adresse IP")
+        for (attempt in 1..2) {
+            Thread.sleep(1500)
+            try {
+                call(ctx, "system", "setPowerStatus", powerParams(true), timeoutMs = 1500)
+                Prefs.savePower(ctx, true)
+                return true
+            } catch (e: Exception) {
+                // pas encore réveillée
+            }
+        }
+        error("Réveil réseau envoyé : la TV ne répond pas encore, réessaie")
+    }
+
+    /** Allume la TV si besoin. Renvoie true s'il a fallu l'allumer (elle démarre), false si elle l'était déjà. */
+    fun powerOn(ctx: Context): Result<Boolean> = runCatching { ensureOn(ctx) }
+
+    private fun ensureOn(ctx: Context): Boolean {
+        val current: Boolean? = try {
+            val result = call(ctx, "system", "getPowerStatus", JSONArray(), timeoutMs = 1500)
+            result.optJSONObject(0)?.optString("status") == "active"
+        } catch (e: Exception) {
+            null
+        }
+        if (current == true) {
+            Prefs.savePower(ctx, true)
+            return false
+        }
+        if (current == false) {
+            call(ctx, "system", "setPowerStatus", powerParams(true))
+            Prefs.savePower(ctx, true)
+            return true
+        }
+        return wake(ctx)
+    }
+
+    /** Mémorise l'adresse MAC de la TV (une seule fois) pour pouvoir la réveiller par le réseau. */
+    private fun rememberMac(ctx: Context) {
+        if (Prefs.mac(ctx).isNotEmpty()) return
+        runCatching {
+            var mac = call(ctx, "system", "getSystemInformation", JSONArray())
+                .optJSONObject(0)?.optString("macAddr").orEmpty()
+            if (!isMac(mac)) {
+                val params = JSONArray().put(JSONObject().put("netif", ""))
+                val nets = call(ctx, "system", "getNetworkSettings", params).optJSONArray(0) ?: JSONArray()
+                val ip = Prefs.ip(ctx)
+                for (i in 0 until nets.length()) {
+                    val o = nets.optJSONObject(i) ?: continue
+                    val hw = o.optString("hwAddr")
+                    if (!isMac(hw)) continue
+                    if (!isMac(mac) || o.optString("ipAddrV4") == ip) mac = hw
+                }
+            }
+            if (isMac(mac)) Prefs.saveMac(ctx, mac)
+        }
+    }
+
+    private fun isMac(value: String): Boolean =
+        Regex("([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}").matches(value)
+
+    /** Envoie le « paquet magique » Wake-on-LAN. false si l'adresse MAC n'est pas encore connue. */
+    private fun wakeOnLan(ctx: Context): Boolean {
+        val text = Prefs.mac(ctx)
+        if (!isMac(text)) return false
+        return runCatching {
+            val parts = text.split(':', '-')
+            val mac = ByteArray(6) { parts[it].toInt(16).toByte() }
+            val packet = ByteArray(102)
+            for (i in 0 until 6) packet[i] = 0xFF.toByte()
+            for (i in 1..16) System.arraycopy(mac, 0, packet, i * 6, 6)
+
+            val targets = LinkedHashSet<String>()
+            targets.add("255.255.255.255")
+            val ip = Prefs.ip(ctx)
+            val dot = ip.lastIndexOf('.')
+            if (dot > 0) targets.add(ip.substring(0, dot) + ".255")
+
+            val socket = java.net.DatagramSocket()
+            try {
+                socket.broadcast = true
+                for (target in targets) {
+                    for (port in intArrayOf(9, 7)) {
+                        runCatching {
+                            val address = java.net.InetAddress.getByName(target)
+                            socket.send(java.net.DatagramPacket(packet, packet.size, address, port))
+                        }
+                    }
+                }
+            } finally {
+                socket.close()
+            }
+            true
+        }.getOrDefault(false)
     }
 
     // ---------------------------------------------------------------- clavier
@@ -181,6 +315,32 @@ object BraviaClient {
         list
     }
 
+    /**
+     * URI de la source réellement affichée (ex. « extInput:hdmi?port=1 », « tv:dvbt »).
+     * Échoue si la TV est en veille ou si une de ses applications est au premier plan.
+     */
+    fun currentInputUri(ctx: Context): Result<String> = runCatching {
+        val o = call(ctx, "avContent", "getPlayingContentInfo", JSONArray(), timeoutMs = 2000).optJSONObject(0)
+        val uri = o?.optString("uri").orEmpty()
+        if (uri.isEmpty()) error("Source inconnue")
+        uri
+    }
+
+    /**
+     * Aligne la source mémorisée sur la source réelle (changée avec la vraie télécommande, par exemple).
+     * Renvoie l'URI de la source réelle.
+     */
+    fun syncSource(ctx: Context): Result<String> = runCatching {
+        val uri = currentInputUri(ctx).getOrThrow()
+        val name: String? = if (!uri.startsWith("extInput:", ignoreCase = true)) {
+            "TV"
+        } else {
+            getInputs(ctx).getOrNull()?.firstOrNull { it.uri.equals(uri, ignoreCase = true) }?.display
+        }
+        if (name != null) Prefs.saveSource(ctx, name)
+        uri
+    }
+
     fun setInput(ctx: Context, input: TvInput): Result<Unit> {
         val viaApi = runCatching {
             call(ctx, "avContent", "setPlayContent", JSONArray().put(JSONObject().put("uri", input.uri)))
@@ -207,8 +367,10 @@ object BraviaClient {
      * sinon la touche réglée dans l'appli (par défaut « SyncMenu », le menu de l'appareil HDMI-CEC).
      */
     fun sendDeviceHome(ctx: Context): Result<Unit> {
-        val source = Prefs.lastSource(ctx)
-        if (source == "TV") return sendTvHome(ctx)
+        // Source réelle lue sur la TV ; à défaut, la dernière source choisie dans l'appli.
+        val uri = currentInputUri(ctx).getOrNull()
+        val onTv = if (uri != null) !uri.startsWith("extInput:", ignoreCase = true) else Prefs.lastSource(ctx) == "TV"
+        if (onTv) return sendTvHome(ctx)
         return sendIrcc(ctx, Prefs.deviceHomeKey(ctx))
     }
 
@@ -346,23 +508,39 @@ object BraviaClient {
             "<s:Body><u:X_SendIRCC xmlns:u=\"urn:schemas-sony-com:service:IRCC:1\">" +
             "<IRCCCode>$code</IRCCCode></u:X_SendIRCC></s:Body></s:Envelope>"
 
-        val conn = URL("http://$ip/sony/IRCC").openConnection() as HttpURLConnection
-        try {
-            conn.requestMethod = "POST"
-            conn.connectTimeout = 3000
-            conn.readTimeout = 5000
-            conn.doOutput = true
-            conn.setRequestProperty("Content-Type", "text/xml; charset=UTF-8")
-            conn.setRequestProperty("SOAPACTION", IRCC_ACTION)
-            if (psk.isNotEmpty()) conn.setRequestProperty("X-Auth-PSK", psk)
-            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        // Une touche n'est renvoyée que si la connexion elle-même a échoué (rien n'est parti) :
+        // jamais de double appui.
+        var attempt = 0
+        while (true) {
+            attempt++
+            val conn = URL("http://$ip/sony/IRCC").openConnection() as HttpURLConnection
+            try {
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 2500
+                conn.readTimeout = 5000
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "text/xml; charset=UTF-8")
+                conn.setRequestProperty("SOAPACTION", IRCC_ACTION)
+                if (psk.isNotEmpty()) conn.setRequestProperty("X-Auth-PSK", psk)
+                try {
+                    conn.connect()
+                } catch (e: java.io.IOException) {
+                    if (attempt < 2) {
+                        Thread.sleep(250)
+                        continue
+                    }
+                    error("TV injoignable (Wi-Fi du téléphone ? TV en veille ?)")
+                }
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
-            val status = conn.responseCode
-            if (status == 403) error("Accès refusé : vérifie la clé PSK sur la TV")
-            if (status !in 200..299) error("Erreur HTTP $status")
-            conn.inputStream.use { it.readBytes() }
-        } finally {
-            conn.disconnect()
+                val status = conn.responseCode
+                if (status == 403) error("Accès refusé : vérifie la clé PSK sur la TV")
+                if (status !in 200..299) error("Erreur HTTP $status")
+                conn.inputStream.use { it.readBytes() }
+                return
+            } finally {
+                conn.disconnect()
+            }
         }
     }
 
@@ -373,7 +551,8 @@ object BraviaClient {
         service: String,
         method: String,
         params: JSONArray,
-        version: String = "1.0"
+        version: String = "1.0",
+        timeoutMs: Int = 4000
     ): JSONArray {
         val ip = Prefs.ip(ctx)
         val psk = Prefs.psk(ctx)
@@ -389,8 +568,8 @@ object BraviaClient {
         val conn = URL("http://$ip/sony/$service").openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
-            conn.connectTimeout = 4000
-            conn.readTimeout = 6000
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs + 2000
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
             if (psk.isNotEmpty()) conn.setRequestProperty("X-Auth-PSK", psk)

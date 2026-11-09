@@ -15,8 +15,8 @@ import android.widget.TextView
 
 /**
  * Télécommande sur un seul écran (sans défilement) :
- * marche/arrêt unique, un bouton Source, croix directionnelle, retour/accueil/options,
- * volume et chaînes, lecture, puis clavier et pavé numérique.
+ * marche/arrêt, choix TV / décodeur et source, croix directionnelle ou pavé tactile,
+ * retour/accueil/options, volume et chaînes, lecture, puis clavier, chiffres, scènes.
  */
 class RemoteActivity : Activity() {
 
@@ -24,6 +24,11 @@ class RemoteActivity : Activity() {
     private lateinit var shortcuts: AppShortcuts
     private lateinit var power: PowerButton
     private lateinit var subtitle: TextView
+    private lateinit var scenes: SceneUi
+    private lateinit var segTv: TextView
+    private lateinit var segDecoder: TextView
+    private lateinit var dpadView: View
+    private lateinit var touchpad: View
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,6 +38,7 @@ class RemoteActivity : Activity() {
         actions = TvActions(this)
         actions.onStateChanged = { renderState() }
         shortcuts = AppShortcuts(this, actions)
+        scenes = SceneUi(this, actions)
 
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
@@ -42,15 +48,27 @@ class RemoteActivity : Activity() {
         // --- Barre du haut : marche/arrêt, état, réglages
         root.addView(buildTopBar(), LinearLayout.LayoutParams(MATCH, dp(56)))
 
-        // --- Source (un seul bouton)
+        // --- Appareil visé (TV ou décodeur) et bouton Source
         val source = labeled(R.drawable.ic_input, "Source") { actions.showSourcePicker() }
+        val targetRow = LinearLayout(this)
+        targetRow.orientation = LinearLayout.HORIZONTAL
+        val switchLp = LinearLayout.LayoutParams(0, MATCH, 2f)
+        switchLp.rightMargin = dp(8)
+        targetRow.addView(buildTargetSwitch(), switchLp)
+        targetRow.addView(source, LinearLayout.LayoutParams(0, MATCH, 1f))
         val sourceLp = LinearLayout.LayoutParams(MATCH, dp(52))
         sourceLp.topMargin = dp(10)
-        root.addView(source, sourceLp)
+        root.addView(targetRow, sourceLp)
 
         // --- Croix directionnelle (prend toute la place restante), avec deux boutons ronds
         //     en haut : à gauche les applications du décodeur, à droite celles de la TV.
-        val dpad = DpadView(this) { key, repeat -> actions.sendKey(key, skipIfBusy = repeat) }
+        //     Au choix : croix classique ou pavé tactile (bouton « Tactile »).
+        dpadView = DpadView(this) { key, repeat -> actions.key(key, repeat = repeat) }
+        touchpad = TouchpadView(this) { key, repeat -> actions.key(key, repeat = repeat) }
+        val padBox = FrameLayout(this)
+        padBox.addView(dpadView, FrameLayout.LayoutParams(MATCH, MATCH))
+        padBox.addView(touchpad, FrameLayout.LayoutParams(MATCH, MATCH))
+        applyPadMode()
         val decoderBtn = RoundButton.create(
             this, R.drawable.ic_set_top_box, "Applications du décodeur",
             onClick = { shortcuts.showDecoderApps() },
@@ -61,7 +79,7 @@ class RemoteActivity : Activity() {
             onClick = { shortcuts.showTvApps() },
             onLongClick = { shortcuts.pickTvApps() }
         )
-        val dpadArea = DpadArea(this, dpad, decoderBtn, tvAppsBtn, dp(50))
+        val dpadArea = DpadArea(this, padBox, decoderBtn, tvAppsBtn, dp(50))
         val dpadLp = LinearLayout.LayoutParams(MATCH, 0, 1f)
         dpadLp.topMargin = dp(10)
         dpadLp.bottomMargin = dp(10)
@@ -71,10 +89,10 @@ class RemoteActivity : Activity() {
         root.addView(
             row(
                 dp(60),
-                captioned(R.drawable.ic_back, "Retour") { actions.sendKey("Return", "Back") },
+                captioned(R.drawable.ic_back, "Retour") { actions.key("Return", "Back") },
                 captioned(R.drawable.ic_devices_home, "Home appareil") { actions.deviceHome() },
                 captioned(R.drawable.ic_home, "Home TV") { actions.tvHome() },
-                captioned(R.drawable.ic_more, "Options") { actions.sendKey("Options") }
+                captioned(R.drawable.ic_more, "Options") { actions.key("Options") }
             )
         )
 
@@ -95,7 +113,11 @@ class RemoteActivity : Activity() {
         val bottom = row(
             dp(48),
             labeled(R.drawable.ic_keyboard, "Clavier") { actions.showKeyboard() },
-            labeled(R.drawable.ic_dialpad, "Chiffres") { actions.showNumpad() }
+            labeled(R.drawable.ic_dialpad, "Chiffres") { actions.showNumpad() },
+            labeled(R.drawable.ic_touch, "Tactile") {
+                Prefs.saveTouchpad(this, !Prefs.touchpad(this))
+                applyPadMode()
+            }
         )
         (bottom.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
         root.addView(bottom)
@@ -104,6 +126,7 @@ class RemoteActivity : Activity() {
         val extra = row(
             dp(48),
             labeled(R.drawable.ic_language, "Web") { actions.openWeb() },
+            labeled(R.drawable.ic_scene, "Scènes") { scenes.show() },
             labeled(R.drawable.ic_apps, "Plus") { actions.openMore() }
         )
         (extra.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
@@ -125,11 +148,33 @@ class RemoteActivity : Activity() {
         shortcuts.close()
     }
 
+    // ------------------------------------------------------------------ touches volume du téléphone
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        val key = when (keyCode) {
+            android.view.KeyEvent.KEYCODE_VOLUME_UP -> "VolumeUp"
+            android.view.KeyEvent.KEYCODE_VOLUME_DOWN -> "VolumeDown"
+            else -> return super.onKeyDown(keyCode, event)
+        }
+        actions.sendKey(key, skipIfBusy = event.repeatCount > 0)
+        return true
+    }
+
+    override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP ||
+            keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN
+        ) return true
+        return super.onKeyUp(keyCode, event)
+    }
+
     // ------------------------------------------------------------------ état affiché
 
     private fun renderState() {
         val on = Prefs.lastPower(this)
         power.on = on
+        val target = Prefs.target(this)
+        paintSegment(segTv, target == Target.TV)
+        paintSegment(segDecoder, target == Target.DECODER)
         val state = when (on) {
             true -> "Allumée"
             false -> "En veille"
@@ -140,6 +185,45 @@ class RemoteActivity : Activity() {
     }
 
     // ------------------------------------------------------------------ morceaux d'interface
+
+    /** Sélecteur à deux positions : la croix, les chaînes et la lecture visent la TV ou le décodeur. */
+    private fun buildTargetSwitch(): LinearLayout {
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.HORIZONTAL
+        box.background = Ui.rounded(this, Ui.SURFACE, 26)
+        box.setPadding(dp(4), dp(4), dp(4), dp(4))
+        segTv = segment("TV", Target.TV)
+        segDecoder = segment("Décodeur", Target.DECODER)
+        box.addView(segTv, LinearLayout.LayoutParams(0, MATCH, 1f))
+        box.addView(segDecoder, LinearLayout.LayoutParams(0, MATCH, 1f))
+        return box
+    }
+
+    private fun segment(text: String, target: Target): TextView {
+        val t = TextView(this)
+        t.text = text
+        t.gravity = Gravity.CENTER
+        t.textSize = 15f
+        t.maxLines = 1
+        t.isClickable = true
+        t.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            actions.selectTarget(target)
+        }
+        return t
+    }
+
+    private fun paintSegment(view: TextView, selected: Boolean) {
+        view.background = if (selected) Ui.rounded(this, Ui.ACCENT, 22) else null
+        view.setTextColor(if (selected) Ui.BG else Ui.TEXT)
+    }
+
+    /** Affiche la croix directionnelle ou le pavé tactile, selon le réglage. */
+    private fun applyPadMode() {
+        val touch = Prefs.touchpad(this)
+        dpadView.visibility = if (touch) View.GONE else View.VISIBLE
+        touchpad.visibility = if (touch) View.VISIBLE else View.GONE
+    }
 
     private fun buildTopBar(): LinearLayout {
         val bar = LinearLayout(this)
@@ -192,13 +276,13 @@ class RemoteActivity : Activity() {
         plus.setPadding(dp(12), dp(12), dp(12), dp(12))
         plus.contentDescription = "$label plus"
         plus.background = Ui.rounded(this, Color.TRANSPARENT, 34)
-        Ui.holdRepeat(plus) { repeat -> actions.sendKey(upKey, skipIfBusy = repeat) }
+        Ui.holdRepeat(plus) { repeat -> actions.key(upKey, repeat = repeat) }
 
         val minus = icon(R.drawable.ic_remove, Ui.TEXT)
         minus.setPadding(dp(12), dp(12), dp(12), dp(12))
         minus.contentDescription = "$label moins"
         minus.background = Ui.rounded(this, Color.TRANSPARENT, 34)
-        Ui.holdRepeat(minus) { repeat -> actions.sendKey(downKey, skipIfBusy = repeat) }
+        Ui.holdRepeat(minus) { repeat -> actions.key(downKey, repeat = repeat) }
 
         val text = TextView(this)
         text.text = label
@@ -221,6 +305,12 @@ class RemoteActivity : Activity() {
         mute.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             actions.sendKey("Mute")
+        }
+        // Appui long : curseur de volume.
+        mute.setOnLongClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            actions.showVolume()
+            true
         }
         val lp = FrameLayout.LayoutParams(dp(64), dp(64))
         lp.gravity = Gravity.CENTER
@@ -248,7 +338,7 @@ class RemoteActivity : Activity() {
             b.background = Ui.rounded(this, Color.TRANSPARENT, 24)
             b.setOnClickListener {
                 it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                actions.sendKey(key)
+                actions.key(key)
             }
             bar.addView(b, LinearLayout.LayoutParams(0, MATCH, 1f))
         }
@@ -320,8 +410,9 @@ class RemoteActivity : Activity() {
         val label = TextView(this)
         label.text = text
         label.setTextColor(Ui.TEXT)
-        label.textSize = 15f
-        label.setPadding(dp(10), 0, 0, 0)
+        label.textSize = 14f
+        label.maxLines = 1
+        label.setPadding(dp(8), 0, 0, 0)
         box.addView(label, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         return box
     }

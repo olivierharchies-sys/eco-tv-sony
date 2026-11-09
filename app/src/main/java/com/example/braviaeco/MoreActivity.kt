@@ -47,9 +47,15 @@ class MoreActivity : Activity() {
         add(list, "Applications de la TV", "Lancer YouTube, Netflix, un navigateur…") { showApps() }
         add(list, "Toutes les touches", "Chaque touche de télécommande connue de la TV") { showKeys() }
         add(list, "Volume précis", "Régler le volume avec un curseur") { showVolume() }
+        add(list, "Scènes et minuterie", "Enchaînements en un geste, extinction programmée") {
+            SceneUi(this, actions).show()
+        }
+        add(list, "Chaînes favorites", "Zapper d'un geste sur tes chaînes du décodeur") {
+            Favorites.show(this, actions)
+        }
         add(list, "Mode économie d'énergie", "Off, Bas, Haut, Image off") { showEco() }
         add(list, "Infos de la TV", "Modèle, réseau, contenu en cours") { showInfo() }
-        add(list, "Réglages de l'appli", "IP, clé PSK, page web, touche Home appareil") {
+        add(list, "Réglages de l'appli", "TV, décodeur en Wi-Fi, page web, touche Home appareil") {
             startActivity(Intent(this, MainActivity::class.java))
         }
         add(list, "Redémarrer la TV", "Demande un redémarrage complet") { confirmReboot() }
@@ -107,48 +113,7 @@ class MoreActivity : Activity() {
     }
 
     private fun showVolume() {
-        bg({ BraviaClient.getVolume(this) }) { result ->
-            val vol = result.getOrNull()
-            if (vol == null) {
-                fail(result.exceptionOrNull()?.message ?: "Volume indisponible")
-                return@bg
-            }
-            val (current, max, _) = vol
-
-            val label = TextView(this)
-            label.text = "Volume : $current / $max"
-            label.setTextColor(Ui.TEXT)
-            label.textSize = 16f
-            label.gravity = Gravity.CENTER
-
-            val bar = SeekBar(this)
-            bar.max = max
-            bar.progress = current
-            bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(s: SeekBar?, progress: Int, fromUser: Boolean) {
-                    label.text = "Volume : $progress / $max"
-                }
-
-                override fun onStartTrackingTouch(s: SeekBar?) {}
-
-                override fun onStopTrackingTouch(s: SeekBar?) {
-                    val value = bar.progress
-                    actions.runIo { BraviaClient.setVolume(this@MoreActivity, value) }
-                }
-            })
-
-            val box = LinearLayout(this)
-            box.orientation = LinearLayout.VERTICAL
-            box.setPadding(dp(20), dp(12), dp(20), 0)
-            box.addView(label)
-            box.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-            AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-                .setTitle("Volume")
-                .setView(box)
-                .setNegativeButton("Fermer", null)
-                .show()
-        }
+        actions.showVolume()
     }
 
     private fun showEco() {

@@ -39,5 +39,10 @@
 
     <string name="widget_remote_description">Télécommande complète : marche/arrêt, source, web, flèches, Home appareil et TV, volume, chaînes</string>
 
+    <string name="widget_scenes_description">Tes scènes en un geste : « Regarder la TV », « Tout éteindre »…</string>
+    <string name="widget_channels_description">Tes chaînes favorites du décodeur, une case par chaîne</string>
+    <string name="tile_power">TV Marche/Arrêt</string>
+    <string name="tile_mute">TV Muet</string>
+
     <string name="help">Sur la TV : Réglages > Réseau > Configuration de l\'IP distante > Authentification > Authentification simple et clé pré-partagée. Définis la clé PSK, puis recopie-la ici avec l\'adresse IP de la TV. Ensuite, ajoute les widgets « Éco TV » depuis l\'écran d\'accueil.</string>
 </resources>

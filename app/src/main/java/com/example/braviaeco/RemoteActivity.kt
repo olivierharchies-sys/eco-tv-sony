@@ -92,13 +92,15 @@ class RemoteActivity : Activity() {
         dpadLp.bottomMargin = dp(10)
         root.addView(dpadArea, dpadLp)
 
-        // --- Retour / Home appareil / Home TV / Options
+        // --- Retour / Home (appareil visé) / Options
         root.addView(
             row(
                 dp(60),
                 captioned(R.drawable.ic_back, "Retour") { actions.key("Return", "Back") },
-                captioned(R.drawable.ic_devices_home, "Home appareil") { actions.deviceHome() },
-                captioned(R.drawable.ic_home, "Home TV") { actions.tvHome() },
+                captioned(R.drawable.ic_home, "Home") {
+                    // Accueil de l'appareil visé par le sélecteur TV / Décodeur.
+                    if (Prefs.target(this) == Target.DECODER) actions.deviceHome() else actions.tvHome()
+                },
                 captioned(R.drawable.ic_more, "Options") { actions.key("Options") }
             )
         )

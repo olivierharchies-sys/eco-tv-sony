@@ -278,20 +278,23 @@ class TvActions(private val act: Activity) {
     }
 
     fun showKeyboard() {
+        // Le clavier suit l'appareil visé par la télécommande (TV ou décodeur).
+        val device = if (Prefs.target(act) == Target.DECODER) AtvDevice.DECODER else AtvDevice.TV
         val edit = EditText(act)
-        edit.hint = "Texte à envoyer à la TV"
+        edit.hint = if (device == AtvDevice.DECODER) "Texte à envoyer au décodeur" else "Texte à envoyer à la TV"
         edit.setSingleLine(true)
         edit.imeOptions = EditorInfo.IME_ACTION_SEND
         edit.setTextColor(Ui.TEXT)
         edit.setHintTextColor(Ui.DIM)
 
         // Lus et modifiés uniquement sur le fil réseau (appels faits dans l'ordre).
-        var byKeys = false
+        var byKeys = device == AtvDevice.DECODER
         var typed = ""
 
         /**
-         * Texte complet envoyé d'un bloc au clavier système de la TV. Si l'application affichée a
-         * son propre clavier, la TV le refuse : on passe alors aux lettres envoyées une par une.
+         * TV : texte complet envoyé d'un bloc au clavier système. Si l'application affichée a son
+         * propre clavier, la TV le refuse : on passe alors aux lettres envoyées une par une.
+         * Décodeur : toujours lettre par lettre (Wi-Fi direct).
          */
         fun push(text: String): Result<Unit> {
             if (!byKeys) {
@@ -300,27 +303,27 @@ class TvActions(private val act: Activity) {
                 byKeys = true
             }
             val target = AtvRemote.typable(text)
-            return AtvRemote.type(act, typed, target, AtvDevice.TV).onSuccess { typed = target }
+            return AtvRemote.type(act, typed, target, device).onSuccess { typed = target }
         }
 
-        // Chaque modification envoie le texte complet (après une courte pause de frappe).
-        var sendTask: Runnable? = null
+        /** Vraie touche Entrée (valide la saisie) ; « OK » choisirait la lettre surlignée à l'écran. */
+        fun enter(): Result<Unit> =
+            if (device.paired(act) && device.ip(act).isNotEmpty()) AtvRemote.sendKey(act, KEY_ENTER, device)
+            else BraviaClient.sendIrcc(act, "Confirm")
+
+        // Saisie directe : chaque caractère tapé ou effacé part aussitôt, dans l'ordre.
         edit.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                sendTask?.let { ui.removeCallbacks(it) }
                 val text = s?.toString() ?: ""
-                val task = Runnable { runIo { push(text) } }
-                sendTask = task
-                ui.postDelayed(task, 350)
+                runIo { push(text) }
             }
         })
         edit.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) {
-                sendTask?.let { ui.removeCallbacks(it) }
                 val text = edit.text.toString()
-                runIo { push(text).onSuccess { sendKey("Confirm") } }
+                runIo { push(text).mapCatching { enter().getOrThrow() } }
                 true
             } else {
                 false
@@ -336,12 +339,11 @@ class TvActions(private val act: Activity) {
         )
 
         val dialog = AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle("Clavier de la TV")
+            .setTitle(if (device == AtvDevice.DECODER) "Clavier du décodeur" else "Clavier de la TV")
             .setView(box)
             .setPositiveButton("Entrée") { _, _ ->
-                sendTask?.let { ui.removeCallbacks(it) }
                 val text = edit.text.toString()
-                runIo { push(text).onSuccess { sendKey("Confirm") } }
+                runIo { push(text).mapCatching { enter().getOrThrow() } }
             }
             .setNegativeButton("Fermer", null)
             .create()
@@ -400,5 +402,6 @@ class TvActions(private val act: Activity) {
         /** Le son sort toujours de la TV : ces touches ne partent jamais vers le décodeur. */
         val TV_ONLY = setOf("VolumeUp", "VolumeDown", "Mute")
         private const val KEY_SEARCH = 84
+        private const val KEY_ENTER = 66
     }
 }

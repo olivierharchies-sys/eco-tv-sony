@@ -270,7 +270,7 @@ class TvActions(private val act: Activity) {
         val device = if (Prefs.target(act) == Target.DECODER) AtvDevice.DECODER else AtvDevice.TV
         runIo {
             if (!device.paired(act) || device.ip(act).isEmpty()) {
-                Result.failure(IllegalStateException(
+                Result.failure<Unit>(IllegalStateException(
                     if (device == AtvDevice.TV) "Saisie : associe d'abord la TV (Réglages > Associer la TV)"
                     else "Saisie : associe d'abord le décodeur en Wi-Fi"
                 ))

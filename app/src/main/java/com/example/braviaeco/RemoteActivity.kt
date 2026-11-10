@@ -122,6 +122,7 @@ class RemoteActivity : Activity() {
         val bottom = row(
             dp(48),
             labeled(R.drawable.ic_keyboard, "Clavier") { actions.showKeyboard() },
+            labeled(R.drawable.ic_search, "Saisie") { actions.focusInput() },
             labeled(R.drawable.ic_dialpad, "Chiffres") { actions.showNumpad() },
             labeled(R.drawable.ic_touch, "Tactile") {
                 Prefs.saveTouchpad(this, !Prefs.touchpad(this))

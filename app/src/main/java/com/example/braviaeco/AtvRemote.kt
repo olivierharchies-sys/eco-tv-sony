@@ -219,7 +219,7 @@ object AtvRemote {
         "play" to 126, "pause" to 127, "playpause" to 85, "stop" to 86, "rewind" to 89, "forward" to 90,
         "next" to 87, "prev" to 88,
         "red" to 183, "green" to 184, "yellow" to 185, "blue" to 186,
-        "epg" to 172, "guide" to 172, "display" to 165,
+        "epg" to 172, "guide" to 172, "display" to 165, "search" to 84,
         "num0" to 7, "num1" to 8, "num2" to 9, "num3" to 10, "num4" to 11,
         "num5" to 12, "num6" to 13, "num7" to 14, "num8" to 15, "num9" to 16
     )

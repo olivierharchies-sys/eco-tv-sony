@@ -265,6 +265,21 @@ class TvActions(private val act: Activity) {
 
     // ------------------------------------------------------------------ clavier
 
+    /** Touche Recherche Android : place le curseur dans la zone de saisie de l'appli affichée. */
+    fun focusInput() {
+        val device = if (Prefs.target(act) == Target.DECODER) AtvDevice.DECODER else AtvDevice.TV
+        runIo {
+            if (!device.paired(act) || device.ip(act).isEmpty()) {
+                Result.failure(IllegalStateException(
+                    if (device == AtvDevice.TV) "Saisie : associe d'abord la TV (Réglages > Associer la TV)"
+                    else "Saisie : associe d'abord le décodeur en Wi-Fi"
+                ))
+            } else {
+                AtvRemote.sendKey(act, KEY_SEARCH, device)
+            }
+        }
+    }
+
     fun showKeyboard() {
         val edit = EditText(act)
         edit.hint = "Texte à envoyer à la TV"
@@ -381,5 +396,6 @@ class TvActions(private val act: Activity) {
     private companion object {
         /** Le son sort toujours de la TV : ces touches ne partent jamais vers le décodeur. */
         val TV_ONLY = setOf("VolumeUp", "VolumeDown", "Mute")
+        private const val KEY_SEARCH = 84
     }
 }

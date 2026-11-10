@@ -273,6 +273,24 @@ class TvActions(private val act: Activity) {
         edit.setTextColor(Ui.TEXT)
         edit.setHintTextColor(Ui.DIM)
 
+        // Lus et modifiés uniquement sur le fil réseau (appels faits dans l'ordre).
+        var byKeys = false
+        var typed = ""
+
+        /**
+         * Texte complet envoyé d'un bloc au clavier système de la TV. Si l'application affichée a
+         * son propre clavier, la TV le refuse : on passe alors aux lettres envoyées une par une.
+         */
+        fun push(text: String): Result<Unit> {
+            if (!byKeys) {
+                val r = BraviaClient.setText(act, text)
+                if (r.exceptionOrNull() !is NoTextFieldException) return r
+                byKeys = true
+            }
+            val target = AtvRemote.typable(text)
+            return AtvRemote.type(act, typed, target, AtvDevice.TV).onSuccess { typed = target }
+        }
+
         // Chaque modification envoie le texte complet (après une courte pause de frappe).
         var sendTask: Runnable? = null
         edit.addTextChangedListener(object : TextWatcher {
@@ -281,7 +299,7 @@ class TvActions(private val act: Activity) {
             override fun afterTextChanged(s: Editable?) {
                 sendTask?.let { ui.removeCallbacks(it) }
                 val text = s?.toString() ?: ""
-                val task = Runnable { runIo { BraviaClient.setText(act, text) } }
+                val task = Runnable { runIo { push(text) } }
                 sendTask = task
                 ui.postDelayed(task, 350)
             }

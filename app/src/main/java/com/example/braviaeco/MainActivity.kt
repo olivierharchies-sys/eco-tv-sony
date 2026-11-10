@@ -23,6 +23,7 @@ class MainActivity : Activity() {
     private lateinit var browserLabel: TextView
     private lateinit var decoderIpField: EditText
     private lateinit var decoderState: TextView
+    private lateinit var tvKeysState: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -236,6 +237,9 @@ class MainActivity : Activity() {
         } else {
             "État : non associé (touches relayées par la TV en HDMI-CEC)"
         }
+        if (::tvKeysState.isInitialized) {
+            tvKeysState.text = if (AtvDevice.TV.paired(this)) "État : TV associée ✓" else "État : TV non associée"
+        }
     }
 
     /** Carte « Détection de la TV » et « Décodeur en Wi-Fi direct », ajoutée avant le texte d'aide. */
@@ -277,10 +281,32 @@ class MainActivity : Activity() {
         showDecoderState()
 
         cardButton(card, "Détecter le décodeur") { detectDecoder() }
-        cardButton(card, "Associer le décodeur") { pairDecoder() }
+        cardButton(card, "Associer le décodeur") { pair(AtvDevice.DECODER) }
         cardButton(card, "Dissocier") {
             AtvPrefs.savePaired(this, false)
             thread { AtvRemote.disconnect() }
+            showDecoderState()
+        }
+
+        val sep2 = TextView(this)
+        sep2.setPadding(0, Ui.dp(this, 14), 0, 0)
+        card.addView(sep2)
+
+        card.addView(cardText("Clavier dans les applis de la TV", 17f, Color.WHITE, true))
+        card.addView(cardText(
+            "Certaines applis de la TV (Molotov…) ont leur propre clavier : le texte y est alors " +
+                "envoyé lettre par lettre, sans majuscules ni accents. Association une seule fois, " +
+                "avec le code affiché sur la TV (TV allumée, même Wi-Fi).",
+            12f, Ui.DIM, false
+        ))
+        tvKeysState = cardText("", 14f, Color.WHITE, false)
+        card.addView(tvKeysState)
+        showDecoderState()
+
+        cardButton(card, "Associer la TV") { pair(AtvDevice.TV) }
+        cardButton(card, "Dissocier la TV") {
+            AtvDevice.TV.savePaired(this, false)
+            thread { AtvRemote.disconnect(AtvDevice.TV) }
             showDecoderState()
         }
 
@@ -322,11 +348,11 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun pairDecoder() {
+    private fun pair(device: AtvDevice) {
         save()
-        tell("Connexion au décodeur…")
+        tell(if (device == AtvDevice.TV) "Connexion à la TV…" else "Connexion au décodeur…")
         thread {
-            val started = AtvRemote.startPairing(this)
+            val started = AtvRemote.startPairing(this, device)
             runOnUiThread {
                 val pairing = started.getOrNull()
                 if (pairing == null || isFinishing) {
@@ -334,13 +360,13 @@ class MainActivity : Activity() {
                     tell("Échec : ${started.exceptionOrNull()?.message}")
                 } else {
                     show("Saisis le code affiché sur la TV")
-                    askPairingCode(pairing)
+                    askPairingCode(pairing, device)
                 }
             }
         }
     }
 
-    private fun askPairingCode(pairing: AtvRemote.Pairing) {
+    private fun askPairingCode(pairing: AtvRemote.Pairing, device: AtvDevice) {
         val edit = EditText(this)
         edit.hint = "Code à 6 caractères"
         edit.setSingleLine(true)
@@ -364,7 +390,7 @@ class MainActivity : Activity() {
                     val done = pairing.finish(this, code)
                     runOnUiThread {
                         if (done.isSuccess) {
-                            tell("Décodeur associé ✓")
+                            tell(if (device == AtvDevice.TV) "TV associée ✓" else "Décodeur associé ✓")
                         } else {
                             tell("Échec : ${done.exceptionOrNull()?.message}")
                         }

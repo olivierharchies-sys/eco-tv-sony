@@ -122,6 +122,12 @@ object Prefs {
         sp(ctx).edit().putBoolean("touchpad", on).apply()
     }
 
+    /** Source affichée quand une application de la TV est au premier plan. */
+    const val SOURCE_APP = "Application"
+
+    /** URI fictive renvoyée par la synchronisation dans ce même cas. */
+    const val APP_URI = "app:"
+
     /** Dernière source choisie depuis l'appli (pour l'affichage). */
     fun lastSource(ctx: Context): String? = sp(ctx).getString("source", null)
 
@@ -129,6 +135,9 @@ object Prefs {
         sp(ctx).edit().putString("source", name).apply()
     }
 }
+
+/** Le clavier système de la TV n'est pas affiché : la TV refuse le texte envoyé d'un bloc. */
+class NoTextFieldException : IllegalStateException("Aucun champ de saisie ouvert sur la TV")
 
 /** Client minimal pour l'API Bravia (REST + IRCC). À appeler hors du thread principal. */
 object BraviaClient {
@@ -299,7 +308,14 @@ object BraviaClient {
 
     /** Remplace le texte du champ de saisie affiché sur la TV. */
     fun setText(ctx: Context, text: String): Result<Unit> = runCatching {
-        call(ctx, "appControl", "setTextForm", JSONArray().put(text))
+        try {
+            call(ctx, "appControl", "setTextForm", JSONArray().put(text))
+        } catch (e: IllegalStateException) {
+            // Erreur 7 (Illegal State) : le clavier système de la TV n'est pas à l'écran
+            // (aucun champ de saisie, ou application avec son propre clavier).
+            if (e.message?.endsWith("(7)") == true) throw NoTextFieldException()
+            throw e
+        }
         Unit
     }
 
@@ -338,10 +354,17 @@ object BraviaClient {
 
     /**
      * Aligne la source mémorisée sur la source réelle (changée avec la vraie télécommande, par exemple).
-     * Renvoie l'URI de la source réelle.
+     * Renvoie l'URI de la source réelle. À appeler TV allumée : si elle répond sans donner de source,
+     * c'est qu'une de ses applications est au premier plan ([Prefs.APP_URI]).
      */
     fun syncSource(ctx: Context): Result<String> = runCatching {
-        val uri = currentInputUri(ctx).getOrThrow()
+        val read = currentInputUri(ctx)
+        val failure = read.exceptionOrNull()
+        if (failure is IllegalStateException && failure.message?.startsWith("TV :") == true) {
+            Prefs.saveSource(ctx, Prefs.SOURCE_APP)
+            return@runCatching Prefs.APP_URI
+        }
+        val uri = read.getOrThrow()
         val name: String? = if (!uri.startsWith("extInput:", ignoreCase = true)) {
             "TV"
         } else {
@@ -379,7 +402,7 @@ object BraviaClient {
     fun sendDeviceHome(ctx: Context): Result<Unit> {
         // Source réelle lue sur la TV ; à défaut, la dernière source choisie dans l'appli.
         val uri = currentInputUri(ctx).getOrNull()
-        val onTv = if (uri != null) !uri.startsWith("extInput:", ignoreCase = true) else Prefs.lastSource(ctx) == "TV"
+        val onTv = if (uri != null) !uri.startsWith("extInput:", ignoreCase = true) else Prefs.lastSource(ctx).let { it == "TV" || it == Prefs.SOURCE_APP }
         if (onTv) return sendTvHome(ctx)
         return sendIrcc(ctx, Prefs.deviceHomeKey(ctx))
     }

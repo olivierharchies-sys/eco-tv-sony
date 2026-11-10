@@ -57,6 +57,21 @@ object AtvPrefs {
     }
 }
 
+/** Appareil Android TV piloté : le décodeur, ou la TV elle-même (clavier de ses applications). */
+enum class AtvDevice(val label: String, private val pairedKey: String) {
+    DECODER("Décodeur", "atv_paired"),
+    TV("TV", "atv_tv_paired");
+
+    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+
+    fun ip(ctx: Context): String = if (this == TV) Prefs.ip(ctx) else AtvPrefs.ip(ctx)
+    fun paired(ctx: Context): Boolean = sp(ctx).getBoolean(pairedKey, false)
+
+    fun savePaired(ctx: Context, paired: Boolean) {
+        sp(ctx).edit().putBoolean(pairedKey, paired).apply()
+    }
+}
+
 /** Encodeur / décodeur protobuf minimal (entiers et champs de longueur variable). */
 internal class Pb {
     private val out = ByteArrayOutputStream()
@@ -180,10 +195,18 @@ object AtvRemote {
 
     private val lock = Any()
     private val writeLock = Any()
-    private var socket: SSLSocket? = null
 
-    @Volatile
-    private var lastSeen = 0L
+    /** Connexion ouverte vers un appareil. */
+    private class Link {
+        var socket: SSLSocket? = null
+
+        @Volatile
+        var lastSeen = 0L
+    }
+
+    private val links = mapOf(AtvDevice.DECODER to Link(), AtvDevice.TV to Link())
+
+    private fun link(device: AtvDevice): Link = links.getValue(device)
 
     @Volatile
     private var cachedContext: SSLContext? = null
@@ -299,6 +322,7 @@ object AtvRemote {
                 .putString("atv_key", Base64.encodeToString(pair.private.encoded, Base64.NO_WRAP))
                 .putString("atv_cert", Base64.encodeToString(certBytes, Base64.NO_WRAP))
                 .putBoolean("atv_paired", false)
+                .putBoolean("atv_tv_paired", false)
                 .apply()
             val created = Identity(pair.private, cert)
             identity = created
@@ -356,7 +380,7 @@ object AtvRemote {
         var shift = 0
         while (true) {
             val b = input.read()
-            if (b < 0) throw EOFException("Connexion fermée par le décodeur")
+            if (b < 0) throw EOFException("Connexion fermée par l'appareil")
             len = len or ((b and 0x7F) shl shift)
             if ((b and 0x80) == 0) break
             shift += 7
@@ -366,7 +390,7 @@ object AtvRemote {
         var off = 0
         while (off < len) {
             val n = input.read(data, off, len - off)
-            if (n < 0) throw EOFException("Connexion fermée par le décodeur")
+            if (n < 0) throw EOFException("Connexion fermée par l'appareil")
             off += n
         }
         return data
@@ -379,18 +403,18 @@ object AtvRemote {
         return root.javaClass.simpleName + (if (text.isEmpty()) "" else " : $text")
     }
 
-    private fun friendly(e: Throwable, pairing: Boolean): Throwable = when (e) {
+    private fun friendly(e: Throwable, pairing: Boolean, device: AtvDevice): Throwable = when (e) {
         is SSLException -> IllegalStateException(
-            if (pairing) "Décodeur : connexion sécurisée refusée (${detail(e)})"
-            else "Décodeur : association à refaire dans les réglages (${detail(e)})"
+            if (pairing) "${device.label} : connexion sécurisée refusée (${detail(e)})"
+            else "${device.label} : association à refaire dans les réglages (${detail(e)})"
         )
-        is IOException -> IllegalStateException("Décodeur injoignable en Wi-Fi (${detail(e)})")
+        is IOException -> IllegalStateException("${device.label} injoignable en Wi-Fi (${detail(e)})")
         else -> e
     }
 
-    private fun <T> friendly(result: Result<T>, pairing: Boolean): Result<T> {
+    private fun <T> friendly(result: Result<T>, pairing: Boolean, device: AtvDevice): Result<T> {
         val e = result.exceptionOrNull() ?: return result
-        return Result.failure(friendly(e, pairing))
+        return Result.failure(friendly(e, pairing, device))
     }
 
     // ---------------------------------------------------------------- association
@@ -398,7 +422,8 @@ object AtvRemote {
     /** Association en cours : le code à 6 caractères est affiché sur la TV. */
     class Pairing internal constructor(
         private val socket: SSLSocket,
-        private val clientCert: X509Certificate
+        private val clientCert: X509Certificate,
+        private val device: AtvDevice
     ) {
         fun finish(ctx: Context, code: String): Result<Unit> {
             val result = runCatching {
@@ -420,13 +445,13 @@ object AtvRemote {
 
                     writeFrame(socket.outputStream, outer().msg(40, Pb().bytes(1, hash)))
                     expectOk(socket.inputStream)
-                    AtvPrefs.savePaired(ctx, true)
-                    disconnect()
+                    device.savePaired(ctx, true)
+                    disconnect(device)
                 } finally {
                     close()
                 }
             }
-            return friendly(result, true)
+            return friendly(result, true, device)
         }
 
         fun close() {
@@ -444,14 +469,14 @@ object AtvRemote {
     private fun expectOk(input: InputStream) {
         val msg = Pb.parse(readFrame(input))
         val status = (msg[2] as? Long) ?: 0L
-        if (status != 200L) error("Association refusée par le décodeur (code $status)")
+        if (status != 200L) error("Association refusée par l'appareil (code $status)")
     }
 
-    /** Démarre l'association : le décodeur affiche un code à l'écran. Puis appeler [Pairing.finish]. */
-    fun startPairing(ctx: Context): Result<Pairing> {
+    /** Démarre l'association : l'appareil affiche un code à l'écran. Puis appeler [Pairing.finish]. */
+    fun startPairing(ctx: Context, device: AtvDevice = AtvDevice.DECODER): Result<Pairing> {
         val result = runCatching {
-            val ip = AtvPrefs.ip(ctx)
-            if (ip.isEmpty()) error("Adresse IP du décodeur non configurée")
+            val ip = device.ip(ctx)
+            if (ip.isEmpty()) error("Adresse IP non configurée (${device.label})")
             val cert = identity(ctx).cert
             val s = open(ctx, ip, PAIRING_PORT, 60000)
             try {
@@ -464,54 +489,61 @@ object AtvRemote {
                 expectOk(input)
                 writeFrame(out, outer().msg(30, Pb().msg(1, encoding).int(2, 1)))
                 expectOk(input)
-                Pairing(s, cert)
+                Pairing(s, cert, device)
             } catch (e: Exception) {
                 runCatching { s.close() }
                 throw e
             }
         }
-        return friendly(result, true)
+        return friendly(result, true, device)
     }
 
     // ---------------------------------------------------------------- télécommande
 
-    fun disconnect() {
+    fun disconnect(device: AtvDevice = AtvDevice.DECODER) {
         synchronized(lock) {
-            socket?.let { s -> runCatching { s.close() } }
-            socket = null
+            val l = link(device)
+            l.socket?.let { s -> runCatching { s.close() } }
+            l.socket = null
         }
     }
 
     /** Connexion prête à l'emploi (à appeler avec [lock] tenu). */
-    private fun connection(ctx: Context): SSLSocket {
-        val current = socket
-        if (current != null && !current.isClosed && System.currentTimeMillis() - lastSeen < STALE_MS) {
+    private fun connection(ctx: Context, device: AtvDevice): SSLSocket {
+        val l = link(device)
+        val current = l.socket
+        if (current != null && !current.isClosed && System.currentTimeMillis() - l.lastSeen < STALE_MS) {
             return current
         }
         if (current != null) runCatching { current.close() }
-        socket = null
+        l.socket = null
 
-        val ip = AtvPrefs.ip(ctx)
-        if (ip.isEmpty() || !AtvPrefs.paired(ctx)) error("Décodeur non associé (Réglages > Décodeur)")
+        val ip = device.ip(ctx)
+        if (ip.isEmpty() || !device.paired(ctx)) {
+            error(
+                if (device == AtvDevice.TV) "Clavier de cette appli : associe d'abord la TV (Réglages > Associer la TV)"
+                else "Décodeur non associé (Réglages > Décodeur)"
+            )
+        }
 
         val s = open(ctx, ip, REMOTE_PORT, 20000)
         val ready = CountDownLatch(1)
-        lastSeen = System.currentTimeMillis()
-        thread(isDaemon = true, name = "atv-remote") { readLoop(s, ready) }
+        l.lastSeen = System.currentTimeMillis()
+        thread(isDaemon = true, name = "atv-remote") { readLoop(s, ready, l) }
         ready.await(4, TimeUnit.SECONDS)
-        if (s.isClosed) throw IOException("Le décodeur a fermé la connexion")
-        socket = s
+        if (s.isClosed) throw IOException("L'appareil a fermé la connexion")
+        l.socket = s
         return s
     }
 
-    /** Répond aux messages du décodeur (configuration, activation, « ping » de maintien). */
-    private fun readLoop(s: SSLSocket, ready: CountDownLatch) {
+    /** Répond aux messages de l'appareil (configuration, activation, « ping » de maintien). */
+    private fun readLoop(s: SSLSocket, ready: CountDownLatch, l: Link) {
         try {
             val input = s.inputStream
             val out = s.outputStream
             while (true) {
                 val msg = Pb.parse(readFrame(input))
-                lastSeen = System.currentTimeMillis()
+                l.lastSeen = System.currentTimeMillis()
                 if (msg.containsKey(1)) {
                     val info = Pb().int(3, 1).str(4, "1").str(5, "atvremote").str(6, "1.0.0")
                     writeFrame(out, Pb().msg(1, Pb().int(1, FEATURES).msg(2, info)))
@@ -534,30 +566,73 @@ object AtvRemote {
         }
     }
 
-    private fun send(ctx: Context, message: Pb): Result<Unit> {
+    private fun send(ctx: Context, message: Pb, device: AtvDevice): Result<Unit> {
         val result = runCatching {
             synchronized(lock) {
                 try {
-                    writeFrame(connection(ctx).outputStream, message)
+                    writeFrame(connection(ctx, device).outputStream, message)
                 } catch (e: IOException) {
                     // Connexion périmée : une seule nouvelle tentative sur une connexion neuve.
-                    socket?.let { s -> runCatching { s.close() } }
-                    socket = null
-                    writeFrame(connection(ctx).outputStream, message)
+                    val l = link(device)
+                    l.socket?.let { s -> runCatching { s.close() } }
+                    l.socket = null
+                    writeFrame(connection(ctx, device).outputStream, message)
                 }
             }
         }
-        return friendly(result, false)
+        return friendly(result, false, device)
     }
 
     /** Appui court sur une touche (code Android KeyEvent). */
-    fun sendKey(ctx: Context, keyCode: Int): Result<Unit> =
-        send(ctx, Pb().msg(10, Pb().int(1, keyCode).int(2, 3)))
+    fun sendKey(ctx: Context, keyCode: Int, device: AtvDevice = AtvDevice.DECODER): Result<Unit> =
+        send(ctx, Pb().msg(10, Pb().int(1, keyCode).int(2, 3)), device)
 
     /** Ouvre une application du décodeur : nom de paquet (com.netflix.ninja) ou lien (https://…). */
     fun launch(ctx: Context, link: String): Result<Unit> {
         val text = link.trim()
         val target = if (Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://.*").matches(text)) text else "market://launch?id=$text"
-        return send(ctx, Pb().msg(90, Pb().str(1, target)))
+        return send(ctx, Pb().msg(90, Pb().str(1, target)), AtvDevice.DECODER)
+    }
+
+    // ---------------------------------------------------------------- saisie touche par touche
+
+    private const val KEY_DEL = 67
+    private const val TYPE_DELAY_MS = 40L
+
+    /** Caractères qu'une touche de clavier Android produit sans majuscule ni combinaison. */
+    private val CHAR_KEYS: Map<Char, Int> = HashMap<Char, Int>().apply {
+        for (c in 'a'..'z') put(c, 29 + (c - 'a'))
+        for (c in '0'..'9') put(c, 7 + (c - '0'))
+        put(' ', 62)
+        put(',', 55)
+        put('.', 56)
+        put('-', 69)
+        put('\'', 75)
+        put('/', 76)
+        put('@', 77)
+    }
+
+    /** Texte réduit à ce que les touches savent écrire : minuscules, sans accents ni symboles rares. */
+    fun typable(text: String): String {
+        val flat = java.text.Normalizer.normalize(
+            text.lowercase().replace('\u2019', '\''),
+            java.text.Normalizer.Form.NFD
+        )
+        return flat.filter { CHAR_KEYS.containsKey(it) }
+    }
+
+    /**
+     * Pour les applications qui ont leur propre clavier à l'écran : fait passer le texte déjà saisi
+     * de [from] à [to] (tous deux issus de [typable]) par des effacements puis des lettres.
+     */
+    fun type(ctx: Context, from: String, to: String, device: AtvDevice): Result<Unit> = runCatching {
+        val keep = from.commonPrefixWith(to).length
+        val keys = ArrayList<Int>()
+        repeat(from.length - keep) { keys.add(KEY_DEL) }
+        for (c in to.substring(keep)) CHAR_KEYS[c]?.let { keys.add(it) }
+        for (k in keys) {
+            sendKey(ctx, k, device).getOrThrow()
+            Thread.sleep(TYPE_DELAY_MS)
+        }
     }
 }

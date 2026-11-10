@@ -202,6 +202,16 @@ object AtvRemote {
 
         @Volatile
         var lastSeen = 0L
+
+        /** Champ de saisie ouvert sur l'appareil : compteurs annoncés par son clavier (message 21). */
+        @Volatile
+        var imeSeen = false
+
+        @Volatile
+        var imeCounter = 0
+
+        @Volatile
+        var fieldCounter = 0
     }
 
     private val links = mapOf(AtvDevice.DECODER to Link(), AtvDevice.TV to Link())
@@ -527,6 +537,7 @@ object AtvRemote {
         }
 
         val s = open(ctx, ip, REMOTE_PORT, 20000)
+        l.imeSeen = false
         val ready = CountDownLatch(1)
         l.lastSeen = System.currentTimeMillis()
         thread(isDaemon = true, name = "atv-remote") { readLoop(s, ready, l) }
@@ -554,6 +565,11 @@ object AtvRemote {
                     val ping = Pb.parse(msg[8] as? ByteArray ?: ByteArray(0))
                     val value = (ping[1] as? Long) ?: 0L
                     writeFrame(out, Pb().msg(9, Pb().int(1, value.toInt())))
+                } else if (msg.containsKey(21)) {
+                    val edit = Pb.parse(msg[21] as? ByteArray ?: ByteArray(0))
+                    l.imeCounter = ((edit[1] as? Long) ?: 0L).toInt()
+                    l.fieldCounter = ((edit[2] as? Long) ?: 0L).toInt()
+                    l.imeSeen = true
                 } else if (msg.containsKey(40)) {
                     ready.countDown()
                 }
@@ -592,6 +608,27 @@ object AtvRemote {
         val text = link.trim()
         val target = if (Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://.*").matches(text)) text else "market://launch?id=$text"
         return send(ctx, Pb().msg(90, Pb().str(1, target)), AtvDevice.DECODER)
+    }
+
+    // ---------------------------------------------------------------- saisie par le clavier de l'appareil
+
+    private const val IME_WAIT_MS = 400L
+
+    /**
+     * Remplace le texte du champ de saisie ouvert sur l'appareil (majuscules et accents compris).
+     * Renvoie false si l'appareil n'a annoncé aucun champ de saisie : il faut alors passer par [type].
+     */
+    fun sendText(ctx: Context, text: String, device: AtvDevice): Result<Boolean> {
+        val l = link(device)
+        val opened = runCatching { synchronized(lock) { connection(ctx, device) } }
+        if (opened.isFailure) return friendly(opened.map { }, false, device).map { false }
+        // Connexion toute neuve : l'annonce du champ de saisie arrive juste après.
+        if (!l.imeSeen) Thread.sleep(IME_WAIT_MS)
+        if (!l.imeSeen) return Result.success(false)
+        val cursor = if (text.isEmpty()) 0 else text.length - 1
+        val status = Pb().int(1, cursor).int(2, cursor).str(3, text)
+        val edit = Pb().int(1, l.imeCounter).int(2, l.fieldCounter).msg(3, Pb().int(1, 1).msg(2, status))
+        return send(ctx, Pb().msg(21, edit), device).map { true }
     }
 
     // ---------------------------------------------------------------- saisie touche par touche

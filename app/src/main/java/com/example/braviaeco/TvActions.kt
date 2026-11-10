@@ -302,6 +302,10 @@ class TvActions(private val act: Activity) {
                 if (r.exceptionOrNull() !is NoTextFieldException) return r
                 byKeys = true
             }
+            // Champ de saisie annoncé par l'appareil : texte complet remis à son clavier.
+            val ime = AtvRemote.sendText(act, text, device)
+            if (ime.getOrNull() != false) return ime.map { }
+            // Sinon (application avec son propre clavier) : lettres envoyées comme des touches.
             val target = AtvRemote.typable(text)
             return AtvRemote.type(act, typed, target, device).onSuccess { typed = target }
         }

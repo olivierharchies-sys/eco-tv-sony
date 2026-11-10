@@ -151,7 +151,6 @@ class TvActions(private val act: Activity) {
         exec {
             val r = BraviaClient.getPowerOn(act)
             if (r.getOrNull() == true) {
-                // Source réelle : la télécommande vise d'elle-même la TV ou le décodeur.
                 val uri = BraviaClient.syncSource(act).getOrNull()
                 val decoderUri = ShortcutPrefs.decoderInputUri(act)
                 if (uri != null && decoderUri.isNotEmpty()) {
@@ -193,9 +192,7 @@ class TvActions(private val act: Activity) {
                         label.text = "Volume : $progress / $max"
                         if (fromUser) runIo(skipIfBusy = true) { BraviaClient.setVolume(act, progress) }
                     }
-
                     override fun onStartTrackingTouch(s: SeekBar?) {}
-
                     override fun onStopTrackingTouch(s: SeekBar?) {
                         val value = bar.progress
                         runIo { BraviaClient.setVolume(act, value) }
@@ -321,7 +318,9 @@ class TvActions(private val act: Activity) {
         })
         edit.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) {
-                sendKey("Confirm")
+                sendTask?.let { ui.removeCallbacks(it) }
+                val text = edit.text.toString()
+                runIo { push(text).onSuccess { sendKey("Confirm") } }
                 true
             } else {
                 false
@@ -339,7 +338,11 @@ class TvActions(private val act: Activity) {
         val dialog = AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle("Clavier de la TV")
             .setView(box)
-            .setPositiveButton("Entrée") { _, _ -> sendKey("Confirm") }
+            .setPositiveButton("Entrée") { _, _ ->
+                sendTask?.let { ui.removeCallbacks(it) }
+                val text = edit.text.toString()
+                runIo { push(text).onSuccess { sendKey("Confirm") } }
+            }
             .setNegativeButton("Fermer", null)
             .create()
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)

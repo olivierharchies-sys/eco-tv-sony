@@ -290,6 +290,7 @@ class TvActions(private val act: Activity) {
         // Lus et modifiés uniquement sur le fil réseau (appels faits dans l'ordre).
         var byKeys = device == AtvDevice.DECODER
         var typed = ""
+        var sent = ""
 
         /**
          * TV : texte complet envoyé d'un bloc au clavier système. Si l'application affichée a son
@@ -303,7 +304,8 @@ class TvActions(private val act: Activity) {
                 byKeys = true
             }
             // Champ de saisie annoncé par l'appareil : texte complet remis à son clavier.
-            val ime = AtvRemote.sendText(act, text, device)
+            val ime = AtvRemote.sendText(act, sent, text, device)
+            if (ime.getOrNull() == true) sent = text
             if (ime.getOrNull() != false) return ime.map { }
             // Sinon (application avec son propre clavier) : lettres envoyées comme des touches.
             val target = AtvRemote.typable(text)

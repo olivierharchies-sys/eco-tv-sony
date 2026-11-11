@@ -203,15 +203,18 @@ object AtvRemote {
         @Volatile
         var lastSeen = 0L
 
-        /** Champ de saisie ouvert sur l'appareil : compteurs annoncés par son clavier (message 21). */
-        @Volatile
-        var imeSeen = false
-
+        /** Compteurs du clavier de l'appareil (messages 20, 21, 22), à renvoyer avec le texte. */
         @Volatile
         var imeCounter = 0
 
         @Volatile
         var fieldCounter = 0
+
+        @Volatile
+        var hasIme = false
+
+        @Volatile
+        var hasField = false
     }
 
     private val links = mapOf(AtvDevice.DECODER to Link(), AtvDevice.TV to Link())
@@ -537,7 +540,10 @@ object AtvRemote {
         }
 
         val s = open(ctx, ip, REMOTE_PORT, 20000)
-        l.imeSeen = false
+        l.imeCounter = 0
+        l.fieldCounter = 0
+        l.hasIme = false
+        l.hasField = false
         val ready = CountDownLatch(1)
         l.lastSeen = System.currentTimeMillis()
         thread(isDaemon = true, name = "atv-remote") { readLoop(s, ready, l) }
@@ -565,11 +571,26 @@ object AtvRemote {
                     val ping = Pb.parse(msg[8] as? ByteArray ?: ByteArray(0))
                     val value = (ping[1] as? Long) ?: 0L
                     writeFrame(out, Pb().msg(9, Pb().int(1, value.toInt())))
+                } else if (msg.containsKey(20)) {
+                    // Application / champ de saisie au premier plan : compteurs à renvoyer avec le texte.
+                    val inject = Pb.parse(msg[20] as? ByteArray ?: ByteArray(0))
+                    val app = Pb.parse(inject[1] as? ByteArray ?: ByteArray(0))
+                    val field = Pb.parse(inject[2] as? ByteArray ?: ByteArray(0))
+                    l.imeCounter = ((app[1] as? Long) ?: 0L).toInt()
+                    l.fieldCounter = ((field[1] as? Long) ?: 0L).toInt()
+                    l.hasIme = l.imeCounter != 0
+                    l.hasField = l.fieldCounter != 0
+                } else if (msg.containsKey(22)) {
+                    val show = Pb.parse(msg[22] as? ByteArray ?: ByteArray(0))
+                    val status = show[2] as? ByteArray
+                    if (status != null) {
+                        l.fieldCounter = ((Pb.parse(status)[1] as? Long) ?: 0L).toInt()
+                        l.hasField = true
+                    }
                 } else if (msg.containsKey(21)) {
                     val edit = Pb.parse(msg[21] as? ByteArray ?: ByteArray(0))
-                    l.imeCounter = ((edit[1] as? Long) ?: 0L).toInt()
-                    l.fieldCounter = ((edit[2] as? Long) ?: 0L).toInt()
-                    l.imeSeen = true
+                    if (!l.hasIme) l.imeCounter = ((edit[1] as? Long) ?: 0L).toInt()
+                    if (!l.hasField) l.fieldCounter = ((edit[2] as? Long) ?: 0L).toInt()
                 } else if (msg.containsKey(40)) {
                     ready.countDown()
                 }
@@ -615,20 +636,28 @@ object AtvRemote {
     private const val IME_WAIT_MS = 400L
 
     /**
-     * Remplace le texte du champ de saisie ouvert sur l'appareil (majuscules et accents compris).
+     * Fait passer le champ de saisie ouvert sur l'appareil de [from] à [to] : effacements, puis
+     * insertion de la suite au curseur par le clavier de l'appareil (majuscules et accents compris).
      * Renvoie false si l'appareil n'a annoncé aucun champ de saisie : il faut alors passer par [type].
      */
-    fun sendText(ctx: Context, text: String, device: AtvDevice): Result<Boolean> {
+    fun sendText(ctx: Context, from: String, to: String, device: AtvDevice): Result<Boolean> = runCatching {
         val l = link(device)
-        val opened = runCatching { synchronized(lock) { connection(ctx, device) } }
-        if (opened.isFailure) return friendly(opened.map { }, false, device).map { false }
+        friendly(runCatching { synchronized(lock) { connection(ctx, device) } }, false, device).getOrThrow()
         // Connexion toute neuve : l'annonce du champ de saisie arrive juste après.
-        if (!l.imeSeen) Thread.sleep(IME_WAIT_MS)
-        if (!l.imeSeen) return Result.success(false)
-        val cursor = if (text.isEmpty()) 0 else text.length - 1
-        val status = Pb().int(1, cursor).int(2, cursor).str(3, text)
-        val edit = Pb().int(1, l.imeCounter).int(2, l.fieldCounter).msg(3, Pb().int(1, 1).msg(2, status))
-        return send(ctx, Pb().msg(21, edit), device).map { true }
+        if (l.imeCounter == 0 && l.fieldCounter == 0) Thread.sleep(IME_WAIT_MS)
+        if (l.imeCounter == 0 && l.fieldCounter == 0) return@runCatching false
+        val keep = from.commonPrefixWith(to).length
+        repeat(from.length - keep) {
+            sendKey(ctx, KEY_DEL, device).getOrThrow()
+            Thread.sleep(TYPE_DELAY_MS)
+        }
+        val added = to.substring(keep)
+        if (added.isNotEmpty()) {
+            val status = Pb().int(1, added.length).int(2, added.length).str(3, added)
+            val edit = Pb().int(1, l.imeCounter).int(2, l.fieldCounter).msg(3, Pb().int(1, 1).msg(2, status))
+            send(ctx, Pb().msg(21, edit), device).getOrThrow()
+        }
+        true
     }
 
     // ---------------------------------------------------------------- saisie touche par touche

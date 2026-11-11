@@ -148,7 +148,7 @@ class MainActivity : Activity() {
         card.addView(note("Page ouverte sur la TV quand tu touches « Web »."))
         webField = field("Adresse de la page (ex. https://www.google.com)", Prefs.webUrl(this))
         webField.inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
-        card.addView(webField)
+        card.addView(webField, fieldLp())
 
         browserLabel = TextView(this)
         browserLabel.setTextColor(Color.WHITE)
@@ -172,7 +172,7 @@ class MainActivity : Activity() {
         test.setBackgroundResource(R.drawable.btn_surface)
         test.setOnClickListener {
             save()
-            run("Ouverture…") {
+            run("Ouverture…", loud = true) {
                 BraviaClient.openWeb(this).fold(
                     onSuccess = { "Page envoyée à la TV" },
                     onFailure = { "Échec : ${it.message}" }
@@ -194,7 +194,7 @@ class MainActivity : Activity() {
                 "Les noms valides sont dans Plus > Toutes les touches."
         ))
         homeKeyField = field("Nom de la touche", Prefs.deviceHomeKey(this))
-        card.addView(homeKeyField)
+        card.addView(homeKeyField, fieldLp())
 
         val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         lp.topMargin = Ui.dp(this, 16)
@@ -202,6 +202,13 @@ class MainActivity : Activity() {
     }
 
     // ------------------------------------------------------------------ TV et décodeur sur le réseau
+
+    /** Même espacement au-dessus de tous les champs de saisie des cartes. */
+    private fun fieldLp(): LinearLayout.LayoutParams {
+        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        lp.topMargin = Ui.dp(this, 8)
+        return lp
+    }
 
     private fun cardText(text: String, sizeSp: Float, color: Int, bold: Boolean): TextView {
         val t = TextView(this)
@@ -225,7 +232,7 @@ class MainActivity : Activity() {
         parent.addView(b, lp)
     }
 
-    /** Message dans la zone d'état (en haut) et en bulle, visible où que l'on soit dans la page. */
+    /** Message dans la zone d'état et en bulle, visible où que l'on soit dans la page. */
     private fun tell(text: String) {
         show(text)
         Ui.toast(this, text)
@@ -233,9 +240,9 @@ class MainActivity : Activity() {
 
     private fun showDecoderState() {
         decoderState.text = if (Decoder.wifi(this)) {
-            "État : associé ✓ (touches envoyées en Wi-Fi direct)"
+            "État : décodeur associé ✓ (touches envoyées en Wi-Fi direct)"
         } else {
-            "État : non associé (touches relayées par la TV en HDMI-CEC)"
+            "État : décodeur non associé (touches relayées par la TV en HDMI-CEC)"
         }
         if (::tvKeysState.isInitialized) {
             tvKeysState.text = if (AtvDevice.TV.paired(this)) "État : TV associée ✓" else "État : TV non associée"
@@ -269,12 +276,13 @@ class MainActivity : Activity() {
             12f, Ui.DIM, false
         ))
         decoderIpField = EditText(this)
-        decoderIpField.hint = "Adresse IP du décodeur"
+        decoderIpField.hint = "Adresse IP du décodeur (ex. 192.168.1.60)"
         decoderIpField.setText(AtvPrefs.ip(this))
         decoderIpField.setSingleLine(true)
+        decoderIpField.inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
         decoderIpField.setTextColor(Color.WHITE)
         decoderIpField.setHintTextColor(Ui.DIM)
-        card.addView(decoderIpField)
+        card.addView(decoderIpField, fieldLp())
 
         decoderState = cardText("", 14f, Color.WHITE, false)
         card.addView(decoderState)
@@ -282,7 +290,7 @@ class MainActivity : Activity() {
 
         cardButton(card, "Détecter le décodeur") { detectDecoder() }
         cardButton(card, "Associer le décodeur") { pair(AtvDevice.DECODER) }
-        cardButton(card, "Dissocier") {
+        cardButton(card, "Dissocier le décodeur") {
             AtvPrefs.savePaired(this, false)
             thread { AtvRemote.disconnect() }
             showDecoderState()
@@ -359,7 +367,7 @@ class MainActivity : Activity() {
                     pairing?.close()
                     tell("Échec : ${started.exceptionOrNull()?.message}")
                 } else {
-                    show("Saisis le code affiché sur la TV")
+                    tell(if (device == AtvDevice.TV) "Saisis le code affiché sur la TV" else "Saisis le code affiché à l'écran")
                     askPairingCode(pairing, device)
                 }
             }
@@ -381,7 +389,7 @@ class MainActivity : Activity() {
         box.addView(edit, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle("Code affiché sur la TV")
+            .setTitle(if (device == AtvDevice.TV) "Code affiché sur la TV" else "Code affiché à l'écran")
             .setView(box)
             .setCancelable(false)
             .setPositiveButton("Valider") { _, _ ->
@@ -403,13 +411,13 @@ class MainActivity : Activity() {
     }
 
     private fun pickBrowser() {
-        show("Lecture des applications…")
+        tell("Lecture des applications…")
         thread {
             val result = BraviaClient.getApps(this)
             runOnUiThread {
                 val apps = result.getOrNull()
                 if (apps == null) {
-                    show("Échec : ${result.exceptionOrNull()?.message}")
+                    tell("Échec : ${result.exceptionOrNull()?.message}")
                     return@runOnUiThread
                 }
                 show("")
@@ -430,12 +438,13 @@ class MainActivity : Activity() {
         status.text = text
     }
 
-    private fun run(progress: String, work: () -> String) {
-        show(progress)
+    /** loud : le résultat s'affiche aussi en bulle, pour les boutons situés sous la zone d'état. */
+    private fun run(progress: String, loud: Boolean = false, work: () -> String) {
+        if (loud) tell(progress) else show(progress)
         thread {
             val message = work()
             runOnUiThread {
-                show(message)
+                if (loud) tell(message) else show(message)
                 EcoWidgetProvider.refreshAll(this)
             }
         }

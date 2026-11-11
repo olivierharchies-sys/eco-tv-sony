@@ -333,7 +333,7 @@ class MainActivity : Activity() {
         card.addView(cardText("Image : 4K ou upscalé", 17f, Color.WHITE, true))
         card.addView(cardText(
             "Détecte si l'image est en 4K natif ou upscalée (HD / SD) et applique les réglages d'image " +
-                "adaptés (mode Cinéma Maison, gradation locale, température de couleur…). " +
+                "adaptés (4K : Cinéma Pro ; upscalé : Cinéma Maison ; contraste, XDR, température de couleur…). " +
                 "Si la TV ne donne pas la résolution, choisis toi-même. TV allumée, clé PSK renseignée.",
             12f, Ui.DIM, false
         ))

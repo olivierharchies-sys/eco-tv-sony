@@ -33,22 +33,28 @@ object Picture {
     private class Want(val target: String, val number: Int? = null, val prefer: List<String> = emptyList())
 
     /**
-     * Base : calibration du Sony X900F (même dalle que le KD-65XF9005) publiée par Sound & Vision,
-     * mode Cinema Home. Seule la netteté change selon le contenu : un peu plus pour l'upscalé,
-     * dont le détail est reconstruit.
+     * Base : les deux colonnes de la calibration du Sony X900F (même dalle que le KD-65XF9005)
+     * publiée par Sound & Vision. 4K natif (souvent HDR) : Cinéma Pro, contraste 90, XDR High.
+     * Upscalé (HD / SD, SDR) : Cinéma Maison, contraste 85, XDR Off.
+     * La luminosité n'est pas touchée : son échelle (0–50 sur ce modèle) diffère de celle de la source.
      */
-    private fun wants(kind: Kind): List<Want> = listOf(
-        Want("pictureMode", prefer = listOf("cinemahome", "cinema", "custom")),
-        Want("brightness", 50),
-        Want("contrast", 85),
-        Want("color", 50),
-        Want("sharpness", if (kind == Kind.NATIVE_4K) 50 else 55),
-        Want("colorTemperature", prefer = listOf("expert1", "warm1", "warm")),
-        Want("autoLocalDimming", prefer = listOf("medium")),
-        Want("xtendedDynamicRange", prefer = listOf("off")),
-        Want("lightSensor", prefer = listOf("off")),
-        Want("autoPictureMode", prefer = listOf("off"))
-    )
+    private fun wants(kind: Kind): List<Want> {
+        val native4k = kind == Kind.NATIVE_4K
+        return listOf(
+            Want(
+                "pictureMode",
+                prefer = if (native4k) listOf("cinemapro", "cinemahome", "custom") else listOf("cinemahome", "cinemapro", "custom")
+            ),
+            Want("contrast", if (native4k) 90 else 85),
+            Want("color", 50),
+            Want("sharpness", 50),
+            Want("colorTemperature", prefer = listOf("expert1", "warm1", "warm")),
+            Want("autoLocalDimming", prefer = listOf("medium")),
+            Want("xtendedDynamicRange", prefer = if (native4k) listOf("high") else listOf("off")),
+            Want("lightSensor", prefer = listOf("off")),
+            Want("autoPictureMode", prefer = listOf("off"))
+        )
+    }
 
     private fun norm(s: String): String = s.lowercase().filter { it.isLetterOrDigit() }
 
@@ -181,7 +187,7 @@ object Picture {
             append(
                 "À régler sur la TV (hors de l'API, valeurs de la même calibration) : Reality Creation sur Manuel, " +
                     "réduction du bruit aléatoire et numérique sur Off, Smooth gradation sur Low, Motionflow sur Off, " +
-                    "Gamma −2, Adv. contrast enhancer sur Low. " +
+                    "Gamma −2 et Adv. contrast enhancer sur Low (en Cinéma Maison) ou Off (en Cinéma Pro). " +
                     "Valeurs de départ issues de la calibration du X900F ; ajuste selon ton exemplaire et ta pièce."
             )
         }

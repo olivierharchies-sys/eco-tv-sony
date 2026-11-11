@@ -593,6 +593,15 @@ object BraviaClient {
 
     // ---------------------------------------------------------------- appel JSON générique
 
+    /** Appel JSON-RPC brut, pour le diagnostic et les réglages d'image ([Picture]). */
+    fun rawCall(
+        ctx: Context,
+        service: String,
+        method: String,
+        params: JSONArray,
+        version: String = "1.0"
+    ): Result<JSONArray> = runCatching { call(ctx, service, method, params, version) }
+
     private fun call(
         ctx: Context,
         service: String,

@@ -72,6 +72,7 @@ class MainActivity : Activity() {
 
         addExtraSettings()
         addDeviceSettings()
+        addPictureCard()
 
         mapOf(
             R.id.test_off to EcoMode.OFF,
@@ -315,6 +316,102 @@ class MainActivity : Activity() {
         val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         lp.topMargin = Ui.dp(this, 16)
         column.addView(card, column.childCount - 1, lp)
+    }
+
+    // ------------------------------------------------------------------ Image de la TV (4K / upscalé)
+
+    private fun addPictureCard() {
+        val scroll = (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)) as ScrollView
+        val column = scroll.getChildAt(0) as LinearLayout
+
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.setBackgroundResource(R.drawable.card)
+        val pad = Ui.dp(this, 16)
+        card.setPadding(pad, pad, pad, pad)
+
+        card.addView(cardText("Image : 4K ou upscalé", 17f, Color.WHITE, true))
+        card.addView(cardText(
+            "Détecte si l'image est en 4K natif ou upscalée (HD / SD) et applique les réglages d'image " +
+                "adaptés (mode Cinéma Maison, gradation locale, température de couleur…). " +
+                "Si la TV ne donne pas la résolution, choisis toi-même. TV allumée, clé PSK renseignée.",
+            12f, Ui.DIM, false
+        ))
+
+        cardButton(card, "Détecter et adapter l'image") {
+            save()
+            tell("Détection de l'image…")
+            thread {
+                val d = Picture.detect(this)
+                runOnUiThread {
+                    val kind = d.kind
+                    if (kind == null) {
+                        askPictureKind(d.reason)
+                    } else {
+                        applyPicture(kind, "${kind.label} (${d.reason})")
+                    }
+                }
+            }
+        }
+        cardButton(card, "Appliquer le profil 4K natif") { save(); applyPicture(Picture.Kind.NATIVE_4K, "choix manuel") }
+        cardButton(card, "Appliquer le profil upscalé") { save(); applyPicture(Picture.Kind.UPSCALED, "choix manuel") }
+        cardButton(card, "Analyser la TV (lecture seule)") {
+            save()
+            tell("Analyse de la TV…")
+            thread {
+                val report = Picture.analyze(this)
+                runOnUiThread { showReport("Analyse de la TV", report) }
+            }
+        }
+
+        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        lp.topMargin = Ui.dp(this, 16)
+        column.addView(card, column.childCount - 1, lp)
+    }
+
+    /** La TV ne dit pas la résolution : l'utilisateur choisit le profil. */
+    private fun askPictureKind(reason: String) {
+        tell("Résolution inconnue : $reason")
+        AlertDialog.Builder(this)
+            .setTitle("Quel type d'image ?")
+            .setMessage("Cette TV ne donne pas la résolution du signal ($reason). Choisis le profil à appliquer.")
+            .setPositiveButton(Picture.Kind.NATIVE_4K.label) { _, _ -> applyPicture(Picture.Kind.NATIVE_4K, "choix manuel") }
+            .setNegativeButton(Picture.Kind.UPSCALED.label) { _, _ -> applyPicture(Picture.Kind.UPSCALED, "choix manuel") }
+            .setNeutralButton("Annuler", null)
+            .show()
+    }
+
+    private fun applyPicture(kind: Picture.Kind, why: String) {
+        tell("Réglage de l'image : ${kind.label}…")
+        thread {
+            val result = Picture.adapt(this, kind)
+            runOnUiThread {
+                val body = result.getOrNull()
+                if (body != null) {
+                    tell("Image réglée : ${kind.label}")
+                    showReport("Profil ${kind.label}", "Détecté : $why\n\n$body")
+                } else {
+                    tell("Échec : ${result.exceptionOrNull()?.message}")
+                }
+            }
+        }
+    }
+
+    /** Compte rendu long : fenêtre défilante plutôt qu'une bulle. */
+    private fun showReport(title: String, text: String) {
+        val tv = TextView(this)
+        tv.text = text
+        tv.textSize = 13f
+        tv.setTextIsSelectable(true)
+        val p = Ui.dp(this, 20)
+        tv.setPadding(p, p / 2, p, 0)
+        val sv = ScrollView(this)
+        sv.addView(tv)
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(sv)
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     private fun detectTv() {

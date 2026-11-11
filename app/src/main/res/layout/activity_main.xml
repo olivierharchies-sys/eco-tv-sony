@@ -75,10 +75,28 @@
                 android:textColorHint="#FF9AA0A6" />
 
             <Button
-                android:id="@+id/btn_save"
+                android:id="@+id/btn_detect_tv"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:layout_marginTop="12dp"
+                android:background="@drawable/btn_surface"
+                android:text="@string/detect_tv"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="4dp"
+                android:text="@string/detect_tv_note"
+                android:textColor="#FF9AA0A6"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_save"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
                 android:background="@drawable/btn_surface"
                 android:text="@string/save"
                 android:textAllCaps="false"

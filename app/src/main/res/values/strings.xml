@@ -6,6 +6,8 @@
     <string name="connection_title">Connexion à la TV</string>
     <string name="hint_ip">Adresse IP de la TV (ex. 192.168.1.50)</string>
     <string name="hint_psk">Clé PSK (Pre-Shared Key)</string>
+    <string name="detect_tv">Détecter la TV</string>
+    <string name="detect_tv_note">Cherche la TV Sony sur le Wi-Fi et remplit son adresse IP (TV allumée).</string>
     <string name="save">Enregistrer</string>
 
     <string name="test_title">Mode économie d\'énergie</string>

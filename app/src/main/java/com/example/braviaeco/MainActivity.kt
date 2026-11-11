@@ -53,6 +53,8 @@ class MainActivity : Activity() {
             show("Réglages enregistrés")
         }
 
+        findViewById<Button>(R.id.btn_detect_tv).setOnClickListener { detectTv() }
+
         findViewById<Button>(R.id.btn_open_remote).setOnClickListener {
             save()
             startActivity(Intent(this, RemoteActivity::class.java))
@@ -249,7 +251,7 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Carte « Détection de la TV » et « Décodeur en Wi-Fi direct », ajoutée avant le texte d'aide. */
+    /** Cartes « Décodeur en Wi-Fi direct » et « Clavier dans les applis de la TV », ajoutées avant le texte d'aide. */
     private fun addDeviceSettings() {
         val scroll = (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)) as ScrollView
         val column = scroll.getChildAt(0) as LinearLayout
@@ -259,14 +261,6 @@ class MainActivity : Activity() {
         card.setBackgroundResource(R.drawable.card)
         val pad = Ui.dp(this, 16)
         card.setPadding(pad, pad, pad, pad)
-
-        card.addView(cardText("Détection de la TV", 17f, Color.WHITE, true))
-        card.addView(cardText("Cherche la TV Sony sur le Wi-Fi et remplit son adresse IP (TV allumée).", 12f, Ui.DIM, false))
-        cardButton(card, "Détecter la TV") { detectTv() }
-
-        val sep = TextView(this)
-        sep.setPadding(0, Ui.dp(this, 14), 0, 0)
-        card.addView(sep)
 
         card.addView(cardText("Décodeur en Wi-Fi direct", 17f, Color.WHITE, true))
         card.addView(cardText(

@@ -620,9 +620,19 @@ object AtvRemote {
         return friendly(result, false, device)
     }
 
-    /** Appui court sur une touche (code Android KeyEvent). */
-    fun sendKey(ctx: Context, keyCode: Int, device: AtvDevice = AtvDevice.DECODER): Result<Unit> =
-        send(ctx, Pb().msg(10, Pb().int(1, keyCode).int(2, 3)), device)
+    /** Sens de l'appui : début d'appui long, fin d'appui long, ou appui court. */
+    const val PRESS_START_LONG = 1
+    const val PRESS_END_LONG = 2
+    const val PRESS_SHORT = 3
+
+    /** Appui sur une touche (code Android KeyEvent) ; court par défaut. */
+    fun sendKey(
+        ctx: Context,
+        keyCode: Int,
+        device: AtvDevice = AtvDevice.DECODER,
+        direction: Int = PRESS_SHORT
+    ): Result<Unit> =
+        send(ctx, Pb().msg(10, Pb().int(1, keyCode).int(2, direction)), device)
 
     /** Ouvre une application du décodeur : nom de paquet (com.netflix.ninja) ou lien (https://…). */
     fun launch(ctx: Context, link: String): Result<Unit> {

@@ -45,6 +45,21 @@ object Decoder {
         return BraviaClient.sendIrcc(ctx, *names)
     }
 
+    /** true si la touche peut être maintenue enfoncée sur le décodeur (Wi-Fi direct uniquement). */
+    fun canHold(ctx: Context, name: String): Boolean = wifi(ctx) && AtvRemote.keyCode(name) != null
+
+    /**
+     * Début ou fin d'un vrai appui maintenu (ex. flèche tenue pour déplacer le curseur d'un navigateur),
+     * au lieu d'une série d'appuis courts.
+     */
+    fun hold(ctx: Context, name: String, start: Boolean): Result<Unit> {
+        val code = AtvRemote.keyCode(name) ?: return Result.failure(IllegalArgumentException("Touche inconnue : $name"))
+        return AtvRemote.sendKey(
+            ctx, code,
+            direction = if (start) AtvRemote.PRESS_START_LONG else AtvRemote.PRESS_END_LONG
+        )
+    }
+
     /** Accueil du décodeur. */
     fun home(ctx: Context): Result<Unit> =
         if (wifi(ctx)) AtvRemote.sendKey(ctx, KEY_HOME) else BraviaClient.sendDeviceHome(ctx)

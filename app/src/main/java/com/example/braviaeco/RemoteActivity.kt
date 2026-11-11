@@ -70,7 +70,11 @@ class RemoteActivity : Activity() {
         // --- Croix directionnelle (prend toute la place restante), avec deux boutons ronds
         //     en haut : à gauche l'économie d'énergie (Haut / Bas), à droite le streaming de la TV.
         //     Au choix : croix classique ou pavé tactile (bouton « Tactile »).
-        dpadView = DpadView(this) { key, repeat -> actions.key(key, repeat = repeat) }
+        dpadView = DpadView(
+            this,
+            onKey = { key, repeat -> actions.key(key, repeat = repeat) },
+            onHold = { key, start -> actions.hold(key, start) }
+        )
         touchpad = TouchpadView(this) { key, repeat -> actions.key(key, repeat = repeat) }
         val padBox = FrameLayout(this)
         padBox.addView(dpadView, FrameLayout.LayoutParams(MATCH, MATCH))

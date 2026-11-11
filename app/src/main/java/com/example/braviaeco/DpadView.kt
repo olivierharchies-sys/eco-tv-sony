@@ -21,10 +21,13 @@ import kotlin.math.sqrt
 /**
  * Croix directionnelle ronde : 4 secteurs (haut, droite, bas, gauche) autour d'un bouton OK central.
  * [onKey] reçoit le nom de la touche et true si c'est une répétition (appui prolongé sur une flèche).
+ * [onHold] est proposé d'abord pour un appui prolongé : il reçoit la touche et true au début, false à la fin,
+ * et renvoie true s'il envoie un vrai appui maintenu (alors plus de répétitions d'appuis courts).
  */
 class DpadView(
     context: Context,
-    private val onKey: (key: String, repeat: Boolean) -> Unit
+    private val onKey: (key: String, repeat: Boolean) -> Unit,
+    private val onHold: (key: String, start: Boolean) -> Boolean = { _, _ -> false }
 ) : View(context) {
 
     private val loop = Handler(Looper.getMainLooper())
@@ -38,12 +41,33 @@ class DpadView(
     private val rect = RectF()
     private val tri = Path()
     private var zone = NONE
+    private var holdTried = false
+    private var holding = false
+    private var holdKey = ""
 
     private val ticker = object : Runnable {
         override fun run() {
+            if (!holdTried) {
+                holdTried = true
+                val key = keyName()
+                if (key != null && onHold(key, true)) {
+                    holding = true
+                    holdKey = key
+                    return
+                }
+            }
             fire(true)
             loop.postDelayed(this, 140)
         }
+    }
+
+    /** Termine l'appui maintenu en cours, s'il y en a un. */
+    private fun endHold() {
+        if (holding) {
+            holding = false
+            onHold(holdKey, false)
+        }
+        holdTried = false
     }
 
     init {
@@ -138,16 +162,17 @@ class DpadView(
         }
     }
 
+    private fun keyName(): String? = when (zone) {
+        UP -> "Up"
+        RIGHT -> "Right"
+        DOWN -> "Down"
+        LEFT -> "Left"
+        CENTER -> "Confirm"
+        else -> null
+    }
+
     private fun fire(repeat: Boolean) {
-        val key = when (zone) {
-            UP -> "Up"
-            RIGHT -> "Right"
-            DOWN -> "Down"
-            LEFT -> "Left"
-            CENTER -> "Confirm"
-            else -> return
-        }
-        onKey(key, repeat)
+        onKey(keyName() ?: return, repeat)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -157,6 +182,7 @@ class DpadView(
                 if (z == NONE) return false
                 parent?.requestDisallowInterceptTouchEvent(true)
                 zone = z
+                holdTried = false
                 invalidate()
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                 fire(false)
@@ -164,6 +190,7 @@ class DpadView(
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 loop.removeCallbacks(ticker)
+                endHold()
                 zone = NONE
                 invalidate()
             }
@@ -174,6 +201,7 @@ class DpadView(
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         loop.removeCallbacks(ticker)
+        endHold()
     }
 
     private companion object {

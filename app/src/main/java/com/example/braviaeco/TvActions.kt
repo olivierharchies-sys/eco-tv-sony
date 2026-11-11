@@ -94,6 +94,16 @@ class TvActions(private val act: Activity) {
         }
     }
 
+    /**
+     * Début (start = true) ou fin d'un appui maintenu sur une flèche. Renvoie false si cela ne s'applique pas
+     * (cible TV, décodeur non associé en Wi-Fi) : l'appelant garde alors la répétition d'appuis courts.
+     */
+    fun hold(name: String, start: Boolean): Boolean {
+        if (Prefs.target(act) != Target.DECODER || name in TV_ONLY || !Decoder.canHold(act, name)) return false
+        runIo { Decoder.hold(act, name, start) }
+        return true
+    }
+
     /** Choisit l'appareil visé par la croix, les chaînes et la lecture. */
     fun selectTarget(target: Target) {
         Prefs.saveTarget(act, target)

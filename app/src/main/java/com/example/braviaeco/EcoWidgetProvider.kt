@@ -72,6 +72,7 @@ class EcoWidgetProvider : AppWidgetProvider() {
         )
 
         fun refreshAll(context: Context) {
+            EcoPlayWidgetProvider.refreshAll(context)
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, EcoWidgetProvider::class.java))
             if (ids.isEmpty()) return

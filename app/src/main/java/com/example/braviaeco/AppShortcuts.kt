@@ -93,6 +93,9 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
         runCatching { io.execute(Runnable { work() }) }
     }
 
+    /** Liste lue une fois par ouverture de la télécommande. */
+    private var streamingCache: List<TvApp>? = null
+
     private fun dialog() = AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
 
     // ================================================================== TV
@@ -113,6 +116,46 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
                     val app = apps[which]
                     actions.runIo { BraviaClient.launchApp(act, app.uri) }
                 }
+            }
+            .show()
+    }
+
+    /** Applications de streaming installées sur la TV (reconnues par leur nom), lancées via l'API. */
+    fun showStreamingApps() {
+        val cached = streamingCache
+        if (cached != null) {
+            showStreamingList(cached)
+            return
+        }
+        Ui.toast(act, "Lecture des applications de la TV…")
+        bg {
+            val result = BraviaClient.getApps(act)
+            ui.post {
+                if (act.isFinishing) return@post
+                val all = result.getOrElse {
+                    Ui.toast(act, it.message ?: "Applications indisponibles (TV allumée ?)")
+                    return@post
+                }
+                val found = all.filter { app ->
+                    val title = app.title.lowercase()
+                    STREAMING.any { title.contains(it) }
+                }.distinctBy { it.uri }.sortedBy { it.title.lowercase() }
+                if (found.isEmpty()) {
+                    Ui.toast(act, "Aucune application de streaming reconnue : appui long pour ta liste")
+                    return@post
+                }
+                streamingCache = found
+                showStreamingList(found)
+            }
+        }
+    }
+
+    private fun showStreamingList(apps: List<TvApp>) {
+        dialog()
+            .setTitle("Streaming")
+            .setItems(apps.map { it.title }.toTypedArray()) { _, which ->
+                val app = apps[which]
+                actions.runIo { BraviaClient.launchApp(act, app.uri) }
             }
             .show()
     }
@@ -430,3 +473,11 @@ object RoundButton {
         return v
     }
 }
+
+/** Mots reconnus dans le nom d'une application de streaming de la TV. */
+private val STREAMING = listOf(
+    "netflix", "youtube", "prime video", "disney", "molotov", "apple tv", "canal", "auvio",
+    "rtl play", "rtlplay", "vrt", "streamz", "arte", "twitch", "hbo", "paramount", "pluto",
+    "rakuten", "dazn", "plex", "kodi", "vlc", "spotify", "deezer", "orange", "pickx", "voo",
+    "tf1", "france.tv", "francetv", "6play", "m6+", "crunchyroll", "mubi", "tubi"
+)

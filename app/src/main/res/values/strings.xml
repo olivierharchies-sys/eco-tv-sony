@@ -19,6 +19,9 @@
 
     <string name="widget_title_default">Éco TV</string>
     <string name="widget_remote">Télécommande</string>
+    <string name="widget_eco_play_description">Économie d\'énergie (Off, Bas, Haut, Image off) et Lecture / Pause</string>
+    <string name="widget_play">Lecture</string>
+    <string name="widget_pause">Pause</string>
     <string name="widget_description">Mode économie d\'énergie de la TV : Off, Bas, Haut, Image off, et accès à la télécommande</string>
 
     <string name="widget_power_label">Marche / Arrêt</string>

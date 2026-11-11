@@ -68,7 +68,7 @@ class RemoteActivity : Activity() {
         root.addView(targetRow, sourceLp)
 
         // --- Croix directionnelle (prend toute la place restante), avec deux boutons ronds
-        //     en haut : à gauche les applications du décodeur, à droite celles de la TV.
+        //     en haut : à gauche l'économie d'énergie (Haut / Bas), à droite le streaming de la TV.
         //     Au choix : croix classique ou pavé tactile (bouton « Tactile »).
         dpadView = DpadView(this) { key, repeat -> actions.key(key, repeat = repeat) }
         touchpad = TouchpadView(this) { key, repeat -> actions.key(key, repeat = repeat) }
@@ -77,14 +77,14 @@ class RemoteActivity : Activity() {
         padBox.addView(touchpad, FrameLayout.LayoutParams(MATCH, MATCH))
         applyPadMode()
         val decoderBtn = RoundButton.create(
-            this, R.drawable.ic_set_top_box, "Applications du décodeur",
-            onClick = { shortcuts.showDecoderApps() },
+            this, R.drawable.ic_eco, "Économie d'énergie : Haut / Bas",
+            onClick = { actions.toggleEco() },
             onLongClick = { shortcuts.showDecoderApps() }
         )
         val tvAppsBtn = RoundButton.create(
-            this, R.drawable.ic_apps, "Applications de la TV",
-            onClick = { shortcuts.showTvApps() },
-            onLongClick = { shortcuts.pickTvApps() }
+            this, R.drawable.ic_apps, "Applications de streaming",
+            onClick = { shortcuts.showStreamingApps() },
+            onLongClick = { shortcuts.showTvApps() }
         )
         val dpadArea = DpadArea(this, padBox, decoderBtn, tvAppsBtn, dp(50))
         val dpadLp = LinearLayout.LayoutParams(MATCH, 0, 1f)
@@ -122,7 +122,6 @@ class RemoteActivity : Activity() {
         val bottom = row(
             dp(48),
             labeled(R.drawable.ic_keyboard, "Clavier") { actions.showKeyboard() },
-            labeled(R.drawable.ic_search, "Saisie") { actions.focusInput() },
             labeled(R.drawable.ic_dialpad, "Chiffres") { actions.showNumpad() },
             labeled(R.drawable.ic_touch, "Tactile") {
                 Prefs.saveTouchpad(this, !Prefs.touchpad(this))

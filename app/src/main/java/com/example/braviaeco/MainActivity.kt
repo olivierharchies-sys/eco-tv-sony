@@ -372,13 +372,28 @@ class MainActivity : Activity() {
     /** La TV ne dit pas la résolution : l'utilisateur choisit le profil. */
     private fun askPictureKind(reason: String) {
         tell("Résolution inconnue : $reason")
+        // Le dernier choix est proposé en premier (bouton principal), l'autre profil en second.
+        val last = lastPictureKind()
+        val first = last ?: Picture.Kind.NATIVE_4K
+        val second = if (first == Picture.Kind.NATIVE_4K) Picture.Kind.UPSCALED else Picture.Kind.NATIVE_4K
         AlertDialog.Builder(this)
             .setTitle("Quel type d'image ?")
             .setMessage("Cette TV ne donne pas la résolution du signal ($reason). Choisis le profil à appliquer.")
-            .setPositiveButton(Picture.Kind.NATIVE_4K.label) { _, _ -> applyPicture(Picture.Kind.NATIVE_4K, "choix manuel") }
-            .setNegativeButton(Picture.Kind.UPSCALED.label) { _, _ -> applyPicture(Picture.Kind.UPSCALED, "choix manuel") }
+            .setPositiveButton(if (last != null) "${first.label} (dernier choix)" else first.label) { _, _ ->
+                applyPicture(first, "choix manuel")
+            }
+            .setNegativeButton(second.label) { _, _ -> applyPicture(second, "choix manuel") }
             .setNeutralButton("Annuler", null)
             .show()
+    }
+
+    private fun lastPictureKind(): Picture.Kind? = runCatching {
+        val name = getSharedPreferences("bravia_eco", MODE_PRIVATE).getString("picture_kind", null)
+        Picture.Kind.values().firstOrNull { it.name == name }
+    }.getOrNull()
+
+    private fun savePictureKind(kind: Picture.Kind) {
+        getSharedPreferences("bravia_eco", MODE_PRIVATE).edit().putString("picture_kind", kind.name).apply()
     }
 
     private fun applyPicture(kind: Picture.Kind, why: String) {
@@ -388,6 +403,7 @@ class MainActivity : Activity() {
             runOnUiThread {
                 val body = result.getOrNull()
                 if (body != null) {
+                    savePictureKind(kind)
                     tell("Image réglée : ${kind.label}")
                     showReport("Profil ${kind.label}", "Détecté : $why\n\n$body")
                 } else {

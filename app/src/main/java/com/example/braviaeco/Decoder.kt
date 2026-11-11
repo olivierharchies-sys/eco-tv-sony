@@ -61,7 +61,7 @@ object Decoder {
             val inputName = ShortcutPrefs.decoderInputName(ctx)
             // Source réelle lue sur la TV ; dans le doute, on bascule sur l'entrée du décodeur.
             val current = BraviaClient.currentInputUri(ctx).getOrNull()
-            if (current == null || !current.equals(inputUri, ignoreCase = true)) {
+            if (current == null || !BraviaClient.sameInput(current, inputUri)) {
                 BraviaClient.setInput(ctx, TvInput(inputUri, inputName, "", true)).getOrThrow()
                 Prefs.saveSource(ctx, inputName)
                 changed = true

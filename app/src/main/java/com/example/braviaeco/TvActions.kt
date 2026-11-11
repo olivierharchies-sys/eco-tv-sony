@@ -147,18 +147,26 @@ class TvActions(private val act: Activity) {
     }
 
     /** Relit l'état réel de la TV, sans message d'erreur si elle est injoignable. */
-    fun refreshPower() {
+    fun refreshPower(attempt: Int = 0) {
         exec {
             val r = BraviaClient.getPowerOn(act)
+            var synced = r.isSuccess && r.getOrNull() != true // éteinte : rien à recaler
             if (r.getOrNull() == true) {
                 val uri = BraviaClient.syncSource(act).getOrNull()
                 val decoderUri = ShortcutPrefs.decoderInputUri(act)
-                if (uri != null && decoderUri.isNotEmpty()) {
-                    val onDecoder = uri.equals(decoderUri, ignoreCase = true)
-                    Prefs.saveTarget(act, if (onDecoder) Target.DECODER else Target.TV)
+                if (uri != null) {
+                    synced = true
+                    if (decoderUri.isNotEmpty()) {
+                        val onDecoder = BraviaClient.sameInput(uri, decoderUri)
+                        Prefs.saveTarget(act, if (onDecoder) Target.DECODER else Target.TV)
+                    }
                 }
             }
             if (r.isSuccess) afterChange()
+            // TV injoignable ou qui démarre encore : nouvel essai dans quelques secondes (sans bloquer les touches).
+            if (!synced && attempt < SYNC_RETRIES) {
+                ui.postDelayed({ if (!act.isFinishing) refreshPower(attempt + 1) }, SYNC_RETRY_MS)
+            }
         }
     }
 
@@ -408,5 +416,9 @@ class TvActions(private val act: Activity) {
         /** Le son sort toujours de la TV : ces touches ne partent jamais vers le décodeur. */
         val TV_ONLY = setOf("VolumeUp", "VolumeDown", "Mute")
         private const val KEY_ENTER = 66
+
+        /** Nouveaux essais de resynchronisation quand la TV ne répond pas encore (démarrage). */
+        private const val SYNC_RETRIES = 12
+        private const val SYNC_RETRY_MS = 5000L
     }
 }

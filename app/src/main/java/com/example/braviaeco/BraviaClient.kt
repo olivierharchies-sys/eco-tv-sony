@@ -353,6 +353,20 @@ object BraviaClient {
     }
 
     /**
+     * Deux URI désignent la même entrée si elles sont identiques ou si ce sont deux entrées externes
+     * sur le même port : la TV peut ajouter ou changer des paramètres (adresse logique HDMI-CEC…)
+     * après un redémarrage, ce qui rendait la comparaison stricte fausse.
+     */
+    fun sameInput(a: String, b: String): Boolean {
+        if (a.equals(b, ignoreCase = true)) return true
+        if (!a.startsWith("extInput:", ignoreCase = true) || !b.startsWith("extInput:", ignoreCase = true)) return false
+        val re = Regex("[?&]port=(\\d+)", RegexOption.IGNORE_CASE)
+        val pa = re.find(a)?.groupValues?.get(1) ?: return false
+        val pb = re.find(b)?.groupValues?.get(1) ?: return false
+        return pa == pb
+    }
+
+    /**
      * Aligne la source mémorisée sur la source réelle (changée avec la vraie télécommande, par exemple).
      * Renvoie l'URI de la source réelle. À appeler TV allumée : si elle répond sans donner de source,
      * c'est qu'une de ses applications est au premier plan ([Prefs.APP_URI]).

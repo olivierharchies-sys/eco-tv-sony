@@ -620,6 +620,11 @@ object AtvRemote {
         return friendly(result, false, device)
     }
 
+    /** Ouvre d'avance la connexion à l'appareil : la première touche ne paie plus la poignée de main TLS. */
+    fun warmUp(ctx: Context, device: AtvDevice) {
+        runCatching { synchronized(lock) { connection(ctx, device) } }
+    }
+
     /** Sens de l'appui : début d'appui long, fin d'appui long, ou appui court. */
     const val PRESS_START_LONG = 1
     const val PRESS_END_LONG = 2

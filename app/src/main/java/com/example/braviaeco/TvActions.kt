@@ -33,6 +33,12 @@ class TvActions(private val act: Activity) {
 
     private val ui = Handler(Looper.getMainLooper())
     private val io = Executors.newSingleThreadExecutor()
+
+    /**
+     * Relectures d'état et préchargement : fil séparé, pour qu'un appel lent vers une TV qui ne répond pas
+     * ne retarde jamais une touche.
+     */
+    private val status = Executors.newSingleThreadExecutor()
     private val pending = AtomicInteger(0)
     private var lastToast = 0L
 
@@ -40,6 +46,7 @@ class TvActions(private val act: Activity) {
 
     fun close() {
         io.shutdown()
+        status.shutdown()
     }
 
     // ------------------------------------------------------------------ envoi
@@ -47,6 +54,14 @@ class TvActions(private val act: Activity) {
     private fun exec(block: () -> Unit) {
         try {
             io.execute(Runnable { block() })
+        } catch (e: RejectedExecutionException) {
+            // activité déjà fermée : on ignore
+        }
+    }
+
+    private fun execStatus(block: () -> Unit) {
+        try {
+            status.execute(Runnable { block() })
         } catch (e: RejectedExecutionException) {
             // activité déjà fermée : on ignore
         }
@@ -158,7 +173,11 @@ class TvActions(private val act: Activity) {
 
     /** Relit l'état réel de la TV, sans message d'erreur si elle est injoignable. */
     fun refreshPower(attempt: Int = 0) {
-        exec {
+        execStatus {
+            if (attempt == 0) {
+                // Connexion et liste des touches prêtes avant la première pression.
+                if (Prefs.target(act) == Target.DECODER) Decoder.warmUp(act) else BraviaClient.warmUp(act)
+            }
             val r = BraviaClient.getPowerOn(act)
             var synced = r.isSuccess && r.getOrNull() != true // éteinte : rien à recaler
             if (r.getOrNull() == true) {
@@ -166,6 +185,9 @@ class TvActions(private val act: Activity) {
                 val decoderUri = ShortcutPrefs.decoderInputUri(act)
                 if (uri != null) {
                     synced = true
+                    // Profil d'image associé à l'entrée, si l'entrée a changé depuis la dernière ouverture.
+                    val auto = Picture.autoApply(act)
+                    if (auto != null) ui.post { Ui.toast(act, "Image : $auto") }
                     if (decoderUri.isNotEmpty()) {
                         val onDecoder = BraviaClient.sameInput(uri, decoderUri)
                         Prefs.saveTarget(act, if (onDecoder) Target.DECODER else Target.TV)

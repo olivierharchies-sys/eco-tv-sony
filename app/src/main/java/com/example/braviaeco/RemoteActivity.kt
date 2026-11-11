@@ -90,7 +90,20 @@ class RemoteActivity : Activity() {
             onClick = { shortcuts.showStreamingApps() },
             onLongClick = { shortcuts.showTvApps() }
         )
-        val dpadArea = DpadArea(this, padBox, decoderBtn, tvAppsBtn, dp(50))
+        // En bas : à gauche les actions rapides (écran éteint, minuteur), à droite l'image (profils mémorisés).
+        val quickMenu = QuickMenu(this)
+        val pictureMenu = PictureMenu(this)
+        val quickBtn = RoundButton.create(
+            this, R.drawable.ic_timer, "Actions rapides : écran éteint, minuteur",
+            onClick = { quickMenu.show() },
+            onLongClick = { quickMenu.show() }
+        )
+        val pictureBtn = RoundButton.create(
+            this, R.drawable.ic_tune, "Image : profils mémorisés (appui long : menu)",
+            onClick = { pictureMenu.onTap() },
+            onLongClick = { pictureMenu.onLongPress() }
+        )
+        val dpadArea = DpadArea(this, padBox, decoderBtn, tvAppsBtn, dp(50), quickBtn, pictureBtn)
         val dpadLp = LinearLayout.LayoutParams(MATCH, 0, 1f)
         dpadLp.topMargin = dp(10)
         dpadLp.bottomMargin = dp(10)
@@ -470,13 +483,17 @@ class DpadArea(
     private val dpad: View,
     private val leftBtn: View,
     private val rightBtn: View,
-    private val buttonSize: Int
+    private val buttonSize: Int,
+    private val bottomLeftBtn: View? = null,
+    private val bottomRightBtn: View? = null
 ) : ViewGroup(context) {
 
     init {
         addView(dpad)
         addView(leftBtn)
         addView(rightBtn)
+        bottomLeftBtn?.let { addView(it) }
+        bottomRightBtn?.let { addView(it) }
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -488,6 +505,8 @@ class DpadArea(
         val bs = MeasureSpec.makeMeasureSpec(buttonSize, MeasureSpec.EXACTLY)
         leftBtn.measure(bs, bs)
         rightBtn.measure(bs, bs)
+        bottomLeftBtn?.measure(bs, bs)
+        bottomRightBtn?.measure(bs, bs)
         setMeasuredDimension(w, if (h > 0) h else side)
     }
 
@@ -508,5 +527,10 @@ class DpadArea(
         val rx = minOf(w - buttonSize, dl + side + out - buttonSize)
         leftBtn.layout(lx, top, lx + buttonSize, top + buttonSize)
         rightBtn.layout(rx, top, rx + buttonSize, top + buttonSize)
+
+        // Boutons du bas : symétriques de ceux du haut, sous les coins bas-gauche et bas-droit.
+        val bottomY = minOf(h, dt + side + half / 2) - buttonSize
+        bottomLeftBtn?.layout(lx, bottomY, lx + buttonSize, bottomY + buttonSize)
+        bottomRightBtn?.layout(rx, bottomY, rx + buttonSize, bottomY + buttonSize)
     }
 }

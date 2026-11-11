@@ -73,6 +73,7 @@ class MainActivity : Activity() {
         addExtraSettings()
         addDeviceSettings()
         addPictureCard()
+        addBackupCard()
 
         mapOf(
             R.id.test_off to EcoMode.OFF,
@@ -367,6 +368,103 @@ class MainActivity : Activity() {
         val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         lp.topMargin = Ui.dp(this, 16)
         column.addView(card, column.childCount - 1, lp)
+    }
+
+    // ------------------------------------------------------------------ Sauvegarde et restauration
+
+    private fun addBackupCard() {
+        val scroll = (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)) as ScrollView
+        val column = scroll.getChildAt(0) as LinearLayout
+
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.setBackgroundResource(R.drawable.card)
+        val pad = Ui.dp(this, 16)
+        card.setPadding(pad, pad, pad, pad)
+
+        card.addView(cardText("Sauvegarde des réglages", 17f, Color.WHITE, true))
+        card.addView(cardText(
+            "Exporte tout (TV, décodeur, raccourcis, scènes, profils d'image) pour le restaurer sur un autre " +
+                "téléphone. Attention : la sauvegarde contient la clé PSK et les clés d'association, " +
+                "ne la partage avec personne.",
+            12f, Ui.DIM, false
+        ))
+        cardButton(card, "Exporter") { exportSettings() }
+        cardButton(card, "Importer") { importSettings() }
+
+        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        lp.topMargin = Ui.dp(this, 16)
+        column.addView(card, column.childCount - 1, lp)
+    }
+
+    private fun exportSettings() {
+        val prefs = getSharedPreferences("bravia_eco", MODE_PRIVATE)
+        val root = org.json.JSONObject()
+        for ((key, value) in prefs.all) {
+            val item = org.json.JSONObject()
+            when (value) {
+                is String -> item.put("t", "s").put("v", value)
+                is Boolean -> item.put("t", "b").put("v", value)
+                is Int -> item.put("t", "i").put("v", value)
+                is Long -> item.put("t", "l").put("v", value)
+                is Float -> item.put("t", "f").put("v", value.toDouble())
+                is Set<*> -> item.put("t", "ss").put("v", org.json.JSONArray(value.map { it.toString() }))
+                else -> {}
+            }
+            if (item.length() > 0) root.put(key, item)
+        }
+        val send = Intent(Intent.ACTION_SEND)
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_SUBJECT, "Sauvegarde Éco TV")
+            .putExtra(Intent.EXTRA_TEXT, root.toString())
+        startActivity(Intent.createChooser(send, "Exporter les réglages"))
+    }
+
+    private fun importSettings() {
+        val edit = EditText(this)
+        edit.hint = "Colle ici la sauvegarde"
+        edit.minLines = 4
+        edit.gravity = android.view.Gravity.TOP
+        AlertDialog.Builder(this)
+            .setTitle("Importer des réglages")
+            .setMessage("Les réglages actuels de l'appli seront remplacés par ceux de la sauvegarde.")
+            .setView(edit)
+            .setPositiveButton("Importer") { _, _ -> restoreSettings(edit.text.toString()) }
+            .setNegativeButton("Annuler", null)
+            .show()
+    }
+
+    /** Lit toute la sauvegarde avant de toucher aux réglages : une sauvegarde illisible ne change rien. */
+    private fun restoreSettings(text: String) {
+        try {
+            val root = org.json.JSONObject(text.trim())
+            val ops = ArrayList<(android.content.SharedPreferences.Editor) -> Unit>()
+            for (key in root.keys()) {
+                val item = root.getJSONObject(key)
+                when (item.getString("t")) {
+                    "s" -> { val v = item.getString("v"); ops.add { it.putString(key, v) } }
+                    "b" -> { val v = item.getBoolean("v"); ops.add { it.putBoolean(key, v) } }
+                    "i" -> { val v = item.getInt("v"); ops.add { it.putInt(key, v) } }
+                    "l" -> { val v = item.getLong("v"); ops.add { it.putLong(key, v) } }
+                    "f" -> { val v = item.getDouble("v").toFloat(); ops.add { it.putFloat(key, v) } }
+                    "ss" -> {
+                        val arr = item.getJSONArray("v")
+                        val v = (0 until arr.length()).map { arr.getString(it) }.toSet()
+                        ops.add { it.putStringSet(key, v) }
+                    }
+                    else -> error("Type inconnu pour « $key »")
+                }
+            }
+            if (ops.isEmpty()) error("Sauvegarde vide")
+            val editor = getSharedPreferences("bravia_eco", MODE_PRIVATE).edit()
+            editor.clear()
+            ops.forEach { it(editor) }
+            editor.apply()
+            tell("Réglages importés : ${ops.size} éléments")
+            recreate()
+        } catch (e: Exception) {
+            tell("Sauvegarde illisible : ${e.message}")
+        }
     }
 
     /** La TV ne dit pas la résolution : l'utilisateur choisit le profil. */

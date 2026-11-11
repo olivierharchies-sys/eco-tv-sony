@@ -527,6 +527,11 @@ object BraviaClient {
         postIrcc(ctx, code)
     }
 
+    /** Charge d'avance la liste des touches de la TV, pour que la première touche parte sans attente. */
+    fun warmUp(ctx: Context) {
+        runCatching { remoteCodes(ctx) }
+    }
+
     private fun remoteCodes(ctx: Context): Map<String, String> {
         val ip = Prefs.ip(ctx)
         codeCache?.let { if (it.first == ip) return it.second }

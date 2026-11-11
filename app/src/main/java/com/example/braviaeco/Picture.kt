@@ -193,6 +193,64 @@ object Picture {
         }
     }
 
+    // ---------------------------------------------------------------- réglages mémorisés
+
+    /** Réglages d'image actuels de la TV (nom → valeur), pour les mémoriser. */
+    fun capture(ctx: Context): Result<Map<String, String>> = runCatching {
+        val map = LinkedHashMap<String, String>()
+        readSettings(ctx).getOrThrow().forEach { s ->
+            if (s.current.isNotEmpty()) map[s.target] = s.current
+        }
+        if (map.isEmpty()) error("La TV ne renvoie aucun réglage d'image")
+        map
+    }
+
+    /** Entrée affichée par la TV (par exemple « extInput:hdmi?port=2 »), ou null si inconnue. */
+    fun currentInput(ctx: Context): String? =
+        BraviaClient.rawCall(ctx, "avContent", "getPlayingContentInfo", JSONArray())
+            .getOrNull()?.optJSONObject(0)?.optString("uri")?.takeIf { it.isNotEmpty() }
+
+    /** Rétablit des réglages mémorisés. Le mode d'image d'abord : en changer modifie les autres valeurs. */
+    fun applyValues(ctx: Context, values: Map<String, String>): Result<String> = runCatching {
+        val mode = values["pictureMode"]
+        if (mode != null) {
+            set(ctx, listOf(setting("pictureMode", mode))).getOrThrow()
+            Thread.sleep(400)
+        }
+        val rest = values.filterKeys { it != "pictureMode" }
+        val refused = ArrayList<String>()
+        var applied = if (mode != null) 1 else 0
+        if (rest.isNotEmpty()) {
+            val all = set(ctx, rest.map { setting(it.key, it.value) })
+            if (all.isSuccess) {
+                applied += rest.size
+            } else {
+                // Un réglage refusé fait échouer l'ensemble : un par un, pour savoir lesquels passent.
+                for ((target, value) in rest) {
+                    if (set(ctx, listOf(setting(target, value))).isSuccess) applied++ else refused.add(target)
+                }
+            }
+        }
+        if (applied == 0) error("La TV a refusé les réglages")
+        buildString {
+            append("Appliqué : $applied réglage(s)")
+            if (refused.isNotEmpty()) append("\nRefusé par la TV : ${refused.joinToString(", ")}")
+        }
+    }
+
+    /**
+     * À l'ouverture de la télécommande : si l'entrée de la TV a changé depuis la dernière fois et qu'un
+     * emplacement lui est associé, l'applique. Renvoie le nom de l'emplacement appliqué, sinon null.
+     */
+    fun autoApply(ctx: Context): String? {
+        val uri = currentInput(ctx) ?: return null
+        if (PictureSlots.lastSeenInput(ctx) == PictureSlots.inputKey(uri)) return null
+        PictureSlots.saveSeenInput(ctx, uri)
+        val name = PictureSlots.autoFor(ctx, uri) ?: return null
+        val values = PictureSlots.get(ctx, name) ?: return null
+        return if (applyValues(ctx, values).isSuccess) name else null
+    }
+
     // ---------------------------------------------------------------- diagnostic
 
     private fun clip(s: String, max: Int = 600): String = if (s.length <= max) s else s.substring(0, max) + "…"

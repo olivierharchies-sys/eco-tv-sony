@@ -45,6 +45,11 @@ object Decoder {
         return BraviaClient.sendIrcc(ctx, *names)
     }
 
+    /** Prépare l'envoi des touches (connexion Wi-Fi direct, ou liste des touches de la TV pour le HDMI-CEC). */
+    fun warmUp(ctx: Context) {
+        if (wifi(ctx)) AtvRemote.warmUp(ctx, AtvDevice.DECODER) else BraviaClient.warmUp(ctx)
+    }
+
     /** true si la touche peut être maintenue enfoncée sur le décodeur (Wi-Fi direct uniquement). */
     fun canHold(ctx: Context, name: String): Boolean = wifi(ctx) && AtvRemote.keyCode(name) != null
 

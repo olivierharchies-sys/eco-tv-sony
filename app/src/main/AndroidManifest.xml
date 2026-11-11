@@ -45,11 +45,6 @@
             android:label="Source"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
-        <!-- Minuteur d'extinction de la TV (alarme) -->
-        <receiver
-            android:name=".SleepReceiver"
-            android:exported="false" />
-
         <!-- Widget 1 : modes d'économie d'énergie -->
         <receiver
             android:name=".EcoWidgetProvider"

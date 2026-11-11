@@ -70,7 +70,7 @@ class QuickMenu(private val act: Activity) {
             .setTitle("Minuteur d'extinction")
             .setItems(labels.toTypedArray()) { _, i ->
                 if (i < minutes.size) {
-                    SleepTimer.start(act, minutes[i])
+                    SleepTimer.set(act, minutes[i])
                     toast("La TV s'éteindra dans ${minutes[i]} min")
                 } else {
                     SleepTimer.cancel(act)

@@ -234,6 +234,16 @@
                 android:value="Met la lecture de la TV en pause pendant un appel et la reprend ensuite" />
         </service>
 
+        <!-- Décodeur gardé éveillé tant que la TV est allumée -->
+        <service
+            android:name=".KeepAwakeService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Envoie une touche sans effet au décodeur tant que la TV est allumée, pour éviter sa mise en veille" />
+        </service>
+
         <!-- Tuiles des Réglages rapides -->
         <service
             android:name=".PowerTileService"

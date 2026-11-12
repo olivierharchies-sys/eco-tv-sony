@@ -182,6 +182,7 @@ class RemoteActivity : Activity() {
         refreshInfo(0)
         paintMute()
         if (CallPause.enabled(this)) CallPause.apply(this)
+        if (KeepAwake.enabled(this)) KeepAwake.apply(this)
     }
 
     /** Muet vert = pause automatique pendant les appels activée. */

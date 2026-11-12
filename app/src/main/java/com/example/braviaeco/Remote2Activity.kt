@@ -102,6 +102,7 @@ class Remote2Activity : Activity() {
         renderState()
         buildTiles()
         actions.refreshPower()
+        if (KeepAwake.enabled(this)) KeepAwake.apply(this)
     }
 
     override fun onDestroy() {

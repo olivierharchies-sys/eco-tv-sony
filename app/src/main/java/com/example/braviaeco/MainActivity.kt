@@ -292,6 +292,40 @@ class MainActivity : Activity() {
             showDecoderState()
         }
 
+        card.addView(cardText(
+            "Évite la mise en veille automatique du décodeur : tant que la TV est allumée, l'appli lui " +
+                "envoie une touche sans effet toutes les 5 minutes (décodeur associé en Wi-Fi direct " +
+                "requis). Une notification discrète reste affichée tant que c'est activé.",
+            12f, Ui.DIM, false
+        ))
+        val keepAwake = Button(this)
+        keepAwake.isAllCaps = false
+        keepAwake.setTextColor(Color.WHITE)
+        keepAwake.setBackgroundResource(R.drawable.btn_surface)
+        fun paintKeepAwake() {
+            keepAwake.text = if (KeepAwake.enabled(this)) "Garder le décodeur éveillé : activé ✓" else "Garder le décodeur éveillé : désactivé"
+        }
+        paintKeepAwake()
+        keepAwake.setOnClickListener {
+            save()
+            val on = !KeepAwake.enabled(this)
+            KeepAwake.setEnabled(this, on)
+            paintKeepAwake()
+            if (on && android.os.Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 8)
+            }
+            tell(
+                if (!on) "Décodeur : veille automatique non bloquée"
+                else if (Decoder.wifi(this)) "Décodeur gardé éveillé tant que la TV est allumée"
+                else "Activé, mais associe d'abord le décodeur en Wi-Fi direct pour que ça marche"
+            )
+        }
+        val keepLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 48))
+        keepLp.topMargin = Ui.dp(this, 8)
+        card.addView(keepAwake, keepLp)
+
         val sep2 = TextView(this)
         sep2.setPadding(0, Ui.dp(this, 14), 0, 0)
         card.addView(sep2)

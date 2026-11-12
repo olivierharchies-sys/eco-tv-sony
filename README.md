@@ -14,6 +14,26 @@ Application Android qui pilote la TV en Wi-Fi local via l'API réseau Bravia de 
 - **Clavier** : ouvre le clavier du téléphone et envoie le texte tapé dans le champ actif de la TV.
 - **Chiffres** : ouvre un pavé numérique.
 
+## Nouveautés de la version 2.19
+
+- **Décodeur gardé éveillé** : dans les réglages, carte « Décodeur en Wi-Fi direct » > bouton
+  **Garder le décodeur éveillé**. Tant que la TV est allumée, l'appli envoie toutes les 5 minutes
+  une touche sans effet (Maj) au décodeur, ce qui évite sa mise en veille automatique.
+  Quand la TV est éteinte ou injoignable, rien n'est envoyé : le décodeur peut dormir normalement.
+  Nécessite le décodeur associé en Wi-Fi direct. Une notification discrète reste affichée tant que
+  c'est activé. Si le téléphone passe en économie d'énergie profonde (écran éteint, immobile,
+  longtemps), Android peut suspendre ces envois : exclure l'appli de l'optimisation de la batterie.
+
+## Autres fonctions depuis la version 1.4
+
+- **Décodeur en Wi-Fi direct** (association par code, sans HDMI-CEC), clavier des applis de la TV.
+- **Télécommande Zen** (second style de télécommande), **historique**, **scènes**, **réglages d'image**
+  (4K ou upscalé), **chaînes favorites** du décodeur.
+- **Pause automatique pendant les appels** : appui long sur le bouton Muet de la télécommande.
+- **Tuiles des Réglages rapides** (marche/arrêt, muet) et widgets supplémentaires (scènes, chaînes
+  favorites, éco + lecture, widgets design).
+- **Sauvegarde / restauration** de tous les réglages.
+
 ## Nouveautés de la version 1.4
 
 Deux boutons ronds de part et d'autre de la flèche « haut » de la croix :
@@ -96,3 +116,6 @@ personnel, mais ne publie pas cet APK comme une appli « officielle ».
   et « Menu des sources de la TV ».
 - *Le clavier n'écrit rien* : il faut qu'un champ de texte soit actif à l'écran de la TV.
 - *Touche non supportée* : la TV ne connaît pas cette touche. Le nom exact est dans le message.
+- *Erreur (404…) dans une appli du décodeur après un réveil ou une longue inactivité* : le décodeur
+  était probablement en veille. Activer **Garder le décodeur éveillé**, désactiver la mise en veille
+  automatique du décodeur dans ses propres réglages, et préférer le câble Ethernet au Wi-Fi pour lui.

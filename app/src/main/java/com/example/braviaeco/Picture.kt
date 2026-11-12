@@ -17,7 +17,11 @@ object Picture {
 
     enum class Kind(val label: String) {
         NATIVE_4K("4K natif"),
-        UPSCALED("Upscalé (HD / SD)")
+        UPSCALED("Upscalé (HD / SD)"),
+        GAME("Jeu (faible latence)"),
+        NIGHT("Cinéma nuit (pièce sombre)"),
+        SPORT("Sport"),
+        DAY("Jour (pièce lumineuse)")
     }
 
     /** [kind] est null quand la TV ne permet pas de savoir : l'utilisateur choisit alors. */
@@ -40,20 +44,70 @@ object Picture {
      */
     private fun wants(kind: Kind): List<Want> {
         val native4k = kind == Kind.NATIVE_4K
-        return listOf(
-            Want(
-                "pictureMode",
-                prefer = if (native4k) listOf("cinemapro", "cinemahome", "custom") else listOf("cinemahome", "cinemapro", "custom")
-            ),
-            Want("contrast", if (native4k) 90 else 85),
-            Want("color", 50),
-            Want("sharpness", 50),
-            Want("colorTemperature", prefer = listOf("expert1", "warm1", "warm")),
-            Want("autoLocalDimming", prefer = listOf("medium")),
-            Want("xtendedDynamicRange", prefer = if (native4k) listOf("high") else listOf("off")),
-            Want("lightSensor", prefer = listOf("off")),
-            Want("autoPictureMode", prefer = listOf("off"))
-        )
+        return when (kind) {
+            Kind.NATIVE_4K, Kind.UPSCALED -> listOf(
+                Want(
+                    "pictureMode",
+                    prefer = if (native4k) listOf("cinemapro", "cinemahome", "custom") else listOf("cinemahome", "cinemapro", "custom")
+                ),
+                Want("contrast", if (native4k) 90 else 85),
+                Want("color", 50),
+                Want("sharpness", 50),
+                Want("colorTemperature", prefer = listOf("expert1", "warm1", "warm")),
+                Want("autoLocalDimming", prefer = listOf("medium")),
+                Want("xtendedDynamicRange", prefer = if (native4k) listOf("high") else listOf("off")),
+                Want("lightSensor", prefer = listOf("off")),
+                Want("autoPictureMode", prefer = listOf("off"))
+            )
+            // Mode Jeu de la TV : traitements d'image coupés pour réduire le délai d'affichage.
+            Kind.GAME -> listOf(
+                Want("pictureMode", prefer = listOf("game", "custom")),
+                Want("contrast", 90),
+                Want("color", 50),
+                Want("sharpness", 50),
+                Want("colorTemperature", prefer = listOf("expert1", "warm1", "neutral")),
+                Want("autoLocalDimming", prefer = listOf("medium")),
+                Want("xtendedDynamicRange", prefer = listOf("medium", "high")),
+                Want("lightSensor", prefer = listOf("off")),
+                Want("autoPictureMode", prefer = listOf("off"))
+            )
+            // Film le soir : contraste un peu plus bas, gradation locale et XDR doux, image chaude.
+            Kind.NIGHT -> listOf(
+                Want("pictureMode", prefer = listOf("cinemapro", "cinemahome", "custom")),
+                Want("contrast", 75),
+                Want("color", 50),
+                Want("sharpness", 45),
+                Want("colorTemperature", prefer = listOf("expert1", "warm1", "warm")),
+                Want("autoLocalDimming", prefer = listOf("medium", "low")),
+                Want("xtendedDynamicRange", prefer = listOf("low", "medium")),
+                Want("lightSensor", prefer = listOf("off")),
+                Want("autoPictureMode", prefer = listOf("off"))
+            )
+            // Sport : image nette et vive, mouvement fluide, température plus neutre.
+            Kind.SPORT -> listOf(
+                Want("pictureMode", prefer = listOf("sports", "standard", "custom")),
+                Want("contrast", 90),
+                Want("color", 55),
+                Want("sharpness", 55),
+                Want("colorTemperature", prefer = listOf("neutral", "expert1", "warm1")),
+                Want("autoLocalDimming", prefer = listOf("high", "medium")),
+                Want("xtendedDynamicRange", prefer = listOf("high")),
+                Want("lightSensor", prefer = listOf("off")),
+                Want("autoPictureMode", prefer = listOf("off"))
+            )
+            // Journée, volets ouverts : image plus lumineuse. Capteur de lumière activé pour suivre la pièce.
+            Kind.DAY -> listOf(
+                Want("pictureMode", prefer = listOf("standard", "vivid", "custom")),
+                Want("contrast", 95),
+                Want("color", 50),
+                Want("sharpness", 50),
+                Want("colorTemperature", prefer = listOf("neutral", "expert1", "warm1")),
+                Want("autoLocalDimming", prefer = listOf("high", "medium")),
+                Want("xtendedDynamicRange", prefer = listOf("high")),
+                Want("lightSensor", prefer = listOf("on")),
+                Want("autoPictureMode", prefer = listOf("off"))
+            )
+        }
     }
 
     private fun norm(s: String): String = s.lowercase().filter { it.isLetterOrDigit() }
@@ -184,7 +238,14 @@ object Picture {
                 appendLine("Non proposé par cette TV : ${skipped.joinToString(", ")}")
             }
             appendLine()
-            append(
+            if (kind == Kind.GAME) {
+                append("Pense à activer le mode jeu / « Game mode » de l'entrée HDMI de la console si la TV le propose. Valeurs de départ : ajuste selon ton goût.")
+            } else if (kind == Kind.NIGHT || kind == Kind.SPORT || kind == Kind.DAY) {
+                append(
+                    "Valeurs de départ raisonnables, pas une calibration mesurée : ajuste dans « Tous les réglages ». " +
+                        "Motionflow et Reality Creation se règlent sur la TV si l'API ne les expose pas."
+                )
+            } else append(
                 "À régler sur la TV (hors de l'API, valeurs de la même calibration) : Reality Creation sur Manuel, " +
                     "réduction du bruit aléatoire et numérique sur Off, Smooth gradation sur Low, Motionflow sur Off, " +
                     "Gamma −2 et Adv. contrast enhancer sur Low (en Cinéma Maison) ou Off (en Cinéma Pro). " +
@@ -192,6 +253,77 @@ object Picture {
             )
         }
     }
+
+    // ---------------------------------------------------------------- édition réglage par réglage
+
+    /** Un réglage d'image tel que la TV l'expose : liste de valeurs ([choices]) ou plage numérique. */
+    class Item(
+        val target: String,
+        val current: String,
+        val choices: List<String>,
+        val min: Int?,
+        val max: Int?,
+        val step: Int
+    ) {
+        val numeric get() = min != null && max != null
+    }
+
+    /** Tous les réglages d'image que la TV accepte de lire (donc de modifier). */
+    fun items(ctx: Context): Result<List<Item>> = runCatching {
+        readSettings(ctx).getOrThrow().map { s ->
+            val usable = s.cands.filter { it.available }
+            val range = usable.firstOrNull { it.numeric }
+            Item(
+                target = s.target,
+                current = s.current,
+                choices = usable.filter { !it.numeric && it.value.isNotEmpty() }.map { it.value },
+                min = range?.min?.roundToInt(),
+                max = range?.max?.roundToInt(),
+                step = range?.step?.takeIf { !it.isNaN() && it >= 1 }?.roundToInt() ?: 1
+            )
+        }
+    }
+
+    /** Modifie un seul réglage. */
+    fun setOne(ctx: Context, target: String, value: String): Result<Unit> =
+        set(ctx, listOf(setting(target, value))).map { }
+
+    private val LABELS = mapOf(
+        "pictureMode" to "Mode d'image",
+        "autoPictureMode" to "Mode d'image automatique",
+        "brightness" to "Luminosité",
+        "contrast" to "Contraste",
+        "color" to "Couleur",
+        "hue" to "Teinte",
+        "sharpness" to "Netteté",
+        "colorTemperature" to "Température de couleur",
+        "autoLocalDimming" to "Gradation locale",
+        "xtendedDynamicRange" to "XDR (plage dynamique étendue)",
+        "lightSensor" to "Capteur de lumière",
+        "hdrMode" to "Mode HDR",
+        "colorSpace" to "Espace colorimétrique",
+        "gamma" to "Gamma",
+        "noiseReduction" to "Réduction du bruit",
+        "mpegNoiseReduction" to "Réduction du bruit MPEG",
+        "smoothGradation" to "Gradation lissée",
+        "motionflow" to "Motionflow",
+        "motionFlow" to "Motionflow",
+        "clearness" to "Clarté",
+        "realityCreation" to "Reality Creation"
+    )
+
+    /** Nom lisible d'un réglage ; sinon le nom de l'API découpé. */
+    fun labelOf(target: String): String =
+        LABELS[target] ?: target.replace(Regex("([a-z0-9])([A-Z])"), "$1 $2").replaceFirstChar { it.uppercase() }
+
+    private val VALUE_LABELS = mapOf(
+        "on" to "Activé", "off" to "Désactivé", "low" to "Bas", "medium" to "Moyen", "high" to "Haut",
+        "auto" to "Auto", "standard" to "Standard", "vivid" to "Vif", "custom" to "Personnalisé",
+        "cinemaPro" to "Cinéma Pro", "cinemaHome" to "Cinéma Maison", "game" to "Jeu", "sports" to "Sport",
+        "photo" to "Photo", "graphics" to "Graphisme", "animation" to "Animation", "neutral" to "Neutre"
+    )
+
+    fun valueLabel(value: String): String = VALUE_LABELS[value] ?: value
 
     // ---------------------------------------------------------------- réglages mémorisés
 

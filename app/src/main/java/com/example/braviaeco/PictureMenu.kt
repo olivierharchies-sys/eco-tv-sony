@@ -3,6 +3,7 @@ package com.example.braviaeco
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
+import android.content.Intent
 import android.widget.EditText
 import android.widget.ScrollView
 import android.widget.TextView
@@ -39,10 +40,12 @@ class PictureMenu(private val act: Activity) {
             labels.add("Appliquer : $n$mark")
             actions.add { applySlot(n) }
         }
-        labels.add("Profil 4K natif")
-        actions.add { applyKind(Picture.Kind.NATIVE_4K) }
-        labels.add("Profil upscalé (HD / SD)")
-        actions.add { applyKind(Picture.Kind.UPSCALED) }
+        for (kind in Picture.Kind.values()) {
+            labels.add("Profil : ${kind.label}")
+            actions.add { applyKind(kind) }
+        }
+        labels.add("⚙  Tous les réglages…")
+        actions.add { act.startActivity(Intent(act, PictureSettingsActivity::class.java)) }
         if (names.isNotEmpty()) {
             labels.add("Supprimer un emplacement…")
             actions.add { askDelete(names) }

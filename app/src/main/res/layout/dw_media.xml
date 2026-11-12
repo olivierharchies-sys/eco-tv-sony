@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/dw_bg"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_play"
+            android:tint="#FFFDA4AF" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.14"
+            android:text="@string/dw_media_title"
+            android:textColor="#FFFDA4AF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/dw_media_status"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif"
+            android:gravity="end"
+            android:singleLine="true"
+            android:text="@string/dw_target_decoder"
+            android:textColor="#FF8B93A7"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal">
+        <ImageView
+            android:id="@+id/dw_media_prev"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="0dp"
+            android:layout_marginEnd="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/dw_key"
+            android:contentDescription="@string/dw_cd_prev"
+            android:padding="12dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_prev"
+            android:tint="#FFE4E8F2" />
+        <ImageView
+            android:id="@+id/dw_media_rew"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/dw_key"
+            android:contentDescription="@string/dw_cd_rewind"
+            android:padding="12dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_rewind"
+            android:tint="#FFE4E8F2" />
+        <ImageView
+            android:id="@+id/dw_media_play"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:layout_weight="1.5"
+            android:background="@drawable/dw_acc_rose"
+            android:contentDescription="@string/dw_cd_play"
+            android:padding="14dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_play"
+            android:tint="#FFFFFFFF" />
+        <ImageView
+            android:id="@+id/dw_media_pause"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/dw_key"
+            android:contentDescription="@string/dw_cd_pause"
+            android:padding="12dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_pause"
+            android:tint="#FFE4E8F2" />
+        <ImageView
+            android:id="@+id/dw_media_fwd"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/dw_key"
+            android:contentDescription="@string/dw_cd_forward"
+            android:padding="12dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_forward"
+            android:tint="#FFE4E8F2" />
+        <ImageView
+            android:id="@+id/dw_media_next"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="0dp"
+            android:layout_weight="1"
+            android:background="@drawable/dw_key"
+            android:contentDescription="@string/dw_cd_next"
+            android:padding="12dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_next"
+            android:tint="#FFE4E8F2" />
+    </LinearLayout>
+</LinearLayout>

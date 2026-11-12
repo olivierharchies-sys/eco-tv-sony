@@ -173,6 +173,7 @@ class SleepReceiver : BroadcastReceiver() {
                 SleepTimer.clear(context)
                 BraviaClient.setPower(context, false)
                 PowerWidgetProvider.refreshAll(context)
+                SleepDesignWidget.refreshAll(context)
             } finally {
                 pending.finish()
             }

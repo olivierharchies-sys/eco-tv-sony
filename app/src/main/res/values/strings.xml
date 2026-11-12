@@ -50,4 +50,49 @@
     <string name="tile_mute">TV Muet</string>
 
     <string name="help">Sur la TV : Réglages > Réseau > Configuration de l\'IP distante > Authentification > Authentification simple et clé pré-partagée. Définis la clé PSK, puis recopie-la ici avec l\'adresse IP de la TV. Ensuite, ajoute les widgets « Éco TV » depuis l\'écran d\'accueil.</string>
+
+    <!-- Widgets design -->
+    <string name="dw_image_title">IMAGE</string>
+    <string name="dw_image_status">Prêt</string>
+    <string name="dw_image_4k_sub">natif</string>
+    <string name="dw_image_up_sub">upscalé</string>
+    <string name="dw_image_slot">Profil</string>
+    <string name="dw_image_off">Écran off</string>
+    <string name="dw_sleep_title">VEILLE</string>
+    <string name="dw_sleep_none">Aucun minuteur</string>
+    <string name="dw_sleep_min">min</string>
+    <string name="dw_sleep_cancel">Annuler</string>
+    <string name="dw_media_title">LECTURE</string>
+    <string name="dw_media_status">Décodeur</string>
+    <string name="dw_num_title">CHIFFRES</string>
+    <string name="dw_num_status">Décodeur</string>
+    <string name="dw_target_decoder">Décodeur</string>
+    <string name="dw_pad_ok">OK</string>
+    <string name="dw_cd_img_4k">Image 4K natif</string>
+    <string name="dw_cd_img_up">Image upscalée</string>
+    <string name="dw_cd_img_slot">Profil d\'image mémorisé suivant</string>
+    <string name="dw_cd_img_off">Écran éteint</string>
+    <string name="dw_cd_sleep">Minuteur d\'extinction</string>
+    <string name="dw_cd_sleep_cancel">Annuler le minuteur</string>
+    <string name="dw_cd_back">Retour</string>
+    <string name="dw_cd_up">Haut</string>
+    <string name="dw_cd_down">Bas</string>
+    <string name="dw_cd_left">Gauche</string>
+    <string name="dw_cd_right">Droite</string>
+    <string name="dw_cd_ok">OK</string>
+    <string name="dw_cd_home">Accueil</string>
+    <string name="dw_cd_source">Source</string>
+    <string name="dw_cd_options">Options</string>
+    <string name="dw_cd_prev">Précédent</string>
+    <string name="dw_cd_rewind">Retour rapide</string>
+    <string name="dw_cd_play">Lecture</string>
+    <string name="dw_cd_pause">Pause</string>
+    <string name="dw_cd_forward">Avance rapide</string>
+    <string name="dw_cd_next">Suivant</string>
+    <string name="dw_cd_digit">Chiffre</string>
+    <string name="dw_image_description">Profils d\'image 4K ou upscalé, profil mémorisé et écran éteint</string>
+    <string name="dw_sleep_description">Minuteur d\'extinction de la TV en un geste</string>
+    <string name="dw_pad_description">Croix directionnelle compacte avec OK, retour, accueil, source et options</string>
+    <string name="dw_media_description">Lecture, pause, avance et retour rapides</string>
+    <string name="dw_numpad_description">Pavé numérique pour changer de chaîne</string>
 </resources>

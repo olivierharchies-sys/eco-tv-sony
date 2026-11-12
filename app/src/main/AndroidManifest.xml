@@ -149,6 +149,67 @@
                 android:resource="@xml/channel_widget_info" />
         </receiver>
 
+        <!-- Widgets design -->
+        <receiver
+            android:name=".ImageDesignWidget"
+            android:exported="true"
+            android:label="Éco TV · Image (design)">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dw_image_info" />
+        </receiver>
+
+        <receiver
+            android:name=".SleepDesignWidget"
+            android:exported="true"
+            android:label="Éco TV · Veille (design)">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dw_sleep_info" />
+        </receiver>
+
+        <receiver
+            android:name=".PadDesignWidget"
+            android:exported="true"
+            android:label="Éco TV · Croix (design)">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dw_pad_info" />
+        </receiver>
+
+        <receiver
+            android:name=".MediaDesignWidget"
+            android:exported="true"
+            android:label="Éco TV · Lecture (design)">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dw_media_info" />
+        </receiver>
+
+        <receiver
+            android:name=".NumpadDesignWidget"
+            android:exported="true"
+            android:label="Éco TV · Chiffres (design)">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dw_numpad_info" />
+        </receiver>
+
         <!-- Minuterie de veille -->
         <receiver
             android:name=".SleepReceiver"

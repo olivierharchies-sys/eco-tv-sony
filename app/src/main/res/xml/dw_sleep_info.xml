@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/dw_sleep_description"
+    android:initialLayout="@layout/dw_sleep"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:previewImage="@drawable/dw_preview_sleep"
+    android:previewLayout="@layout/dw_sleep"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="4"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

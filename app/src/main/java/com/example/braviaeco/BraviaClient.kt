@@ -456,6 +456,14 @@ object BraviaClient {
 
     // ---------------------------------------------------------------- volume, infos, redémarrage
 
+    /** Numéro de chaîne du tuner de la TV (absent sur HDMI : le décodeur ne le communique pas). */
+    fun currentChannel(ctx: Context): Result<String> = runCatching {
+        val o = call(ctx, "avContent", "getPlayingContentInfo", JSONArray(), timeoutMs = 2000).optJSONObject(0)
+        val n = o?.optString("dispNum").orEmpty()
+        if (n.isEmpty()) error("Pas de chaîne")
+        n
+    }
+
     /** Volume du haut-parleur : (volume, maximum, muet). */
     fun getVolume(ctx: Context): Result<Triple<Int, Int, Boolean>> = runCatching {
         val result = call(ctx, "audio", "getVolumeInformation", JSONArray())

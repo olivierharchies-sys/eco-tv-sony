@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.View
@@ -12,6 +14,8 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 /**
  * Télécommande sur un seul écran (sans défilement) :
@@ -30,6 +34,11 @@ class RemoteActivity : Activity() {
     private lateinit var dpadView: View
     private lateinit var touchpad: View
     private var brightness: BrightnessControl? = null
+    private var volLabel: TextView? = null
+    private var chLabel: TextView? = null
+    private val infoWorker = Executors.newSingleThreadExecutor()
+    private val infoHandler = Handler(Looper.getMainLooper())
+    private val infoTask = Runnable { loadInfo() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,9 +135,11 @@ class RemoteActivity : Activity() {
         // --- Volume / muet / chaînes
         val volumeRow = row(
             dp(104),
-            rocker("VOL", "VolumeUp", "VolumeDown"),
+            rocker("VOL", { r -> actions.key("VolumeUp", repeat = r); refreshInfo(350) },
+                { r -> actions.key("VolumeDown", repeat = r); refreshInfo(350) }).also { volLabel = it.getChildAt(1) as TextView },
             brightnessRocker(),
-            rocker("CH", "ChannelUp", "ChannelDown")
+            rocker("CH", { r -> actions.key("ChannelUp", repeat = r); refreshInfo(1200) },
+                { r -> actions.key("ChannelDown", repeat = r); refreshInfo(1200) }).also { chLabel = it.getChildAt(1) as TextView }
         )
         (volumeRow.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
         root.addView(volumeRow)
@@ -167,9 +178,34 @@ class RemoteActivity : Activity() {
         super.onResume()
         renderState()
         actions.refreshPower()
+        refreshInfo(0)
+    }
+
+    /** Relit volume et chaîne sur la TV (regroupe les appuis rapprochés). */
+    private fun refreshInfo(delayMs: Long) {
+        infoHandler.removeCallbacks(infoTask)
+        infoHandler.postDelayed(infoTask, delayMs)
+    }
+
+    private fun loadInfo() {
+        try {
+            infoWorker.execute {
+                val vol = BraviaClient.getVolume(this).getOrNull()?.first
+                val ch = BraviaClient.currentChannel(this).getOrNull()
+                runOnUiThread {
+                    if (isFinishing) return@runOnUiThread
+                    if (vol != null) volLabel?.text = "VOL $vol"
+                    chLabel?.text = if (ch != null) "CH $ch" else "CH"
+                }
+            }
+        } catch (e: RejectedExecutionException) {
+            // activité fermée
+        }
     }
 
     override fun onDestroy() {
+        infoHandler.removeCallbacks(infoTask)
+        infoWorker.shutdownNow()
         brightness?.close()
         super.onDestroy()
         actions.close()

@@ -18,7 +18,7 @@ object DesignActions {
 
     /** Envoie une touche à l'appareil visé par la télécommande (volume et muet restent sur la TV). */
     fun key(ctx: Context, name: String): Result<Unit> {
-        val toDecoder = BraviaClient.target(ctx) == Target.DECODER &&
+        val toDecoder = Prefs.target(ctx) == Target.DECODER &&
             name !in setOf("VolumeUp", "VolumeDown", "Mute")
         return if (toDecoder) Decoder.sendKey(ctx, name) else BraviaClient.sendIrcc(ctx, name)
     }
@@ -245,7 +245,7 @@ class MediaDesignWidget : DesignWidget() {
     override fun decorate(context: Context, views: RemoteViews) {
         views.setTextViewText(
             R.id.dw_media_status,
-            if (BraviaClient.target(context) == Target.DECODER) "Décodeur" else "TV"
+            if (Prefs.target(context) == Target.DECODER) "Décodeur" else "TV"
         )
     }
 }
@@ -267,7 +267,7 @@ class NumpadDesignWidget : DesignWidget() {
     override fun decorate(context: Context, views: RemoteViews) {
         views.setTextViewText(
             R.id.dw_num_status,
-            if (BraviaClient.target(context) == Target.DECODER) "Décodeur" else "TV"
+            if (Prefs.target(context) == Target.DECODER) "Décodeur" else "TV"
         )
     }
 }

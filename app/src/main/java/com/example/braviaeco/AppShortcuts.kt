@@ -122,7 +122,18 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
     /** Lance une application de la TV et la garde dans l'historique. */
     private fun launchTvApp(app: TvApp) {
         History.add(act, HistoryEntry("app", app.title, app.uri))
-        actions.runIo { BraviaClient.launchApp(act, app.uri) }
+        launchOnTv(Prefs.SOURCE_APP) { BraviaClient.launchApp(act, app.uri) }
+    }
+
+    /** Une application ou une chaîne de la TV a le focus : les touches doivent viser la TV, pas le décodeur. */
+    private fun launchOnTv(source: String, work: () -> Result<*>) {
+        actions.selectTarget(Target.TV)
+        actions.runIo {
+            val r = work()
+            if (r.isSuccess) Prefs.saveSource(act, source)
+            actions.notifyStateChanged()
+            r
+        }
     }
 
     /** Applications de streaming installées sur la TV (reconnues par leur nom), lancées via l'API. */
@@ -213,9 +224,9 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
             val e = all[which]
             History.add(act, e.copy(time = System.currentTimeMillis()))
             when (e.kind) {
-                "app" -> actions.runIo { BraviaClient.launchApp(act, e.ref) }
+                "app" -> launchOnTv(Prefs.SOURCE_APP) { BraviaClient.launchApp(act, e.ref) }
                 "decoder" -> runDecoderApp(DecoderApp(e.title, e.keys), record = false)
-                else -> actions.runIo { BraviaClient.playContent(act, e.ref).also { actions.notifyStateChanged() } }
+                else -> launchOnTv("TV") { BraviaClient.playContent(act, e.ref) }
             }
         }
     }

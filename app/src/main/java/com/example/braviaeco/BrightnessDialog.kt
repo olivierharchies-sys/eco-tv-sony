@@ -32,11 +32,27 @@ class BrightnessControl(private val act: Activity, private val onValue: (Int) ->
     fun close() = worker.shutdownNow()
 
     private fun run(dir: Int) {
+        val first = tryStep(dir)
+        if (first == null) return
+        // En économie d'énergie « élevé », la TV verrouille la luminosité : passage en « bas », puis nouvel essai.
+        if (BraviaClient.getMode(act).getOrNull() == EcoMode.HIGH && BraviaClient.setMode(act, EcoMode.LOW).isSuccess) {
+            act.runOnUiThread { Ui.toast(act, "Économie d'énergie passée sur bas") }
+            Thread.sleep(400)
+            loaded = false
+            val second = tryStep(dir) ?: return
+            report(second.first, second.second)
+            return
+        }
+        report(first.first, first.second)
+    }
+
+    /** Applique un cran. Renvoie null si c'est fait (ou sans objet), sinon la valeur tentée et l'erreur de la TV. */
+    private fun tryStep(dir: Int): Pair<Int, String>? {
         if (!loaded) {
             val item = Picture.items(act).getOrNull()?.firstOrNull { it.target == "brightness" }
             if (item == null || !item.numeric) {
                 act.runOnUiThread { Ui.toast(act, "La TV ne propose pas de réglage de luminosité") }
-                return
+                return null
             }
             min = item.min!!
             max = item.max!!
@@ -45,14 +61,13 @@ class BrightnessControl(private val act: Activity, private val onValue: (Int) ->
             loaded = true
         }
         val next = (cur + dir * step).coerceIn(min, max)
-        if (next == cur) return
-        val failure = Picture.setOne(act, "brightness", next.toString()).exceptionOrNull()
-        if (failure == null) {
+        if (next == cur) return null
+        val failure = Picture.setOne(act, "brightness", next.toString()).exceptionOrNull() ?: run {
             cur = next
             act.runOnUiThread { onValue(next) }
-        } else {
-            report(next, failure.message.orEmpty())
+            return null
         }
+        return next to failure.message.orEmpty()
     }
 
     private fun report(tried: Int, error: String) {

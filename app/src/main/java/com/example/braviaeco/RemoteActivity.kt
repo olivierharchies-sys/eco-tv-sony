@@ -126,7 +126,7 @@ class RemoteActivity : Activity() {
         val volumeRow = row(
             dp(104),
             rocker("VOL", "VolumeUp", "VolumeDown"),
-            muteCell(),
+            brightnessCell(),
             rocker("CH", "ChannelUp", "ChannelDown")
         )
         (volumeRow.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
@@ -282,6 +282,17 @@ class RemoteActivity : Activity() {
 
         bar.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
+        // Muet : à gauche du bouton de changement de télécommande.
+        val mute = icon(R.drawable.ic_mute, Ui.DIM)
+        mute.setPadding(dp(10), dp(10), dp(10), dp(10))
+        mute.contentDescription = "Muet"
+        mute.background = Ui.rounded(this, Color.TRANSPARENT, 22)
+        mute.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            actions.sendKey("Mute")
+        }
+        bar.addView(mute, LinearLayout.LayoutParams(dp(44), dp(44)))
+
         val swap = icon(R.drawable.ic_swap, Ui.DIM)
         swap.setPadding(dp(10), dp(10), dp(10), dp(10))
         swap.contentDescription = "Télécommande Zen"
@@ -333,25 +344,26 @@ class RemoteActivity : Activity() {
         return box
     }
 
-    private fun muteCell(): FrameLayout {
+    /** Bouton rond de la rangée du volume : luminosité de l'image (curseur). */
+    private fun brightnessCell(): FrameLayout {
         val cell = FrameLayout(this)
-        val mute = icon(R.drawable.ic_mute, Ui.TEXT)
-        mute.setPadding(dp(18), dp(18), dp(18), dp(18))
-        mute.contentDescription = "Muet"
-        mute.background = Ui.rounded(this, Ui.SURFACE, 32)
-        mute.setOnClickListener {
+        val btn = icon(R.drawable.ic_brightness, Ui.TEXT)
+        btn.setPadding(dp(18), dp(18), dp(18), dp(18))
+        btn.contentDescription = "Luminosité de l'image"
+        btn.background = Ui.rounded(this, Ui.SURFACE, 32)
+        btn.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            actions.sendKey("Mute")
+            BrightnessDialog(this).show()
         }
-        // Appui long : curseur de volume.
-        mute.setOnLongClickListener {
+        // Appui long : curseur de volume (comme l'ancien bouton muet).
+        btn.setOnLongClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             actions.showVolume()
             true
         }
         val lp = FrameLayout.LayoutParams(dp(64), dp(64))
         lp.gravity = Gravity.CENTER
-        cell.addView(mute, lp)
+        cell.addView(btn, lp)
         return cell
     }
 

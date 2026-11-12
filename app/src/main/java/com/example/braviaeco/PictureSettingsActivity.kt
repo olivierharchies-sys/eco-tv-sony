@@ -152,15 +152,22 @@ class PictureSettingsActivity : Activity() {
                 val failure = result.exceptionOrNull()
                 if (failure != null) {
                     val msg = failure.message.orEmpty()
-                    val locked = msg.contains("Illegal State", ignoreCase = true) || msg.contains("(7)")
-                    Ui.toast(
-                        this,
-                        if (locked) {
-                            "« ${Picture.labelOf(target)} » n'est pas modifiable maintenant (mode d'image, entrée ou contenu en cours). Change de mode puis réessaie."
-                        } else {
-                            "Refusé par la TV : « ${Picture.labelOf(target)} » → $msg"
+                    Ui.toast(this, "« ${Picture.labelOf(target)} » refusé par la TV : $msg")
+                    thread {
+                        val text = Picture.diagnose(this, target, value, msg)
+                        runOnUiThread {
+                            if (isFinishing) return@runOnUiThread
+                            val tv = TextView(this)
+                            tv.text = text
+                            tv.textSize = 13f
+                            tv.setTextIsSelectable(true)
+                            val p = Ui.dp(this, 20)
+                            tv.setPadding(p, p / 2, p, 0)
+                            val sv = ScrollView(this)
+                            sv.addView(tv)
+                            AlertDialog.Builder(this).setTitle("Réglage refusé").setView(sv).setPositiveButton("OK", null).show()
                         }
-                    )
+                    }
                     load()
                 } else if (reloadAfter) {
                     load()

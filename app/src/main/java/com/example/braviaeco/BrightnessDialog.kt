@@ -2,90 +2,76 @@ package com.example.braviaeco
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.view.Gravity
-import android.view.ViewGroup
-import android.widget.LinearLayout
-import android.widget.SeekBar
+import android.widget.ScrollView
 import android.widget.TextView
-import kotlin.concurrent.thread
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
-/** Réglage rapide de la luminosité de l'image (l'échelle est lue sur la TV, 0–50 sur ce modèle). */
-class BrightnessDialog(private val act: Activity) {
+/**
+ * Luminosité de l'image par un double bouton + / − (comme le volume). Échelle lue sur la TV
+ * (0–50 sur ce modèle). Un refus de la TV ouvre un compte rendu détaillé (une fois toutes les 8 s).
+ */
+class BrightnessControl(private val act: Activity, private val onValue: (Int) -> Unit) {
 
-    fun show() {
-        Ui.toast(act, "Luminosité…")
-        thread {
-            val item = Picture.items(act).getOrNull()?.firstOrNull { it.target == "brightness" }
-            act.runOnUiThread {
-                if (item == null || !item.numeric) {
-                    Ui.toast(act, "La TV ne propose pas de réglage de luminosité")
-                } else {
-                    build(item)
-                }
-            }
+    private val worker = Executors.newSingleThreadExecutor()
+    private var loaded = false
+    private var min = 0
+    private var max = 50
+    private var step = 1
+    private var cur = 0
+    private var lastReport = 0L
+
+    fun nudge(dir: Int) {
+        try {
+            worker.execute { run(dir) }
+        } catch (e: RejectedExecutionException) {
+            // activité fermée
         }
     }
 
-    private fun build(item: Picture.Item) {
-        val min = item.min!!
-        val step = item.step
-        val steps = (item.max!! - min) / step
-        val pad = Ui.dp(act, 20)
+    fun close() = worker.shutdownNow()
 
-        val box = LinearLayout(act)
-        box.orientation = LinearLayout.VERTICAL
-        box.setPadding(pad, pad, pad, pad / 2)
-
-        val value = TextView(act)
-        value.textSize = 28f
-        value.gravity = Gravity.CENTER
-        box.addView(value)
-
-        val bar = SeekBar(act)
-        bar.max = steps
-        val start = ((item.current.toIntOrNull() ?: min) - min) / step
-        bar.progress = start.coerceIn(0, steps)
-        value.text = (min + bar.progress * step).toString()
-        box.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-        fun send(progress: Int) {
-            val v = (min + progress * step).toString()
-            thread {
-                val failure = Picture.setOne(act, "brightness", v).exceptionOrNull()
-                if (failure != null) {
-                    act.runOnUiThread {
-                        Ui.toast(act, "Luminosité refusée par la TV : ${failure.message}")
-                    }
-                }
+    private fun run(dir: Int) {
+        if (!loaded) {
+            val item = Picture.items(act).getOrNull()?.firstOrNull { it.target == "brightness" }
+            if (item == null || !item.numeric) {
+                act.runOnUiThread { Ui.toast(act, "La TV ne propose pas de réglage de luminosité") }
+                return
             }
+            min = item.min!!
+            max = item.max!!
+            step = item.step
+            cur = item.current.toIntOrNull() ?: min
+            loaded = true
         }
-
-        bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar, progress: Int, fromUser: Boolean) {
-                value.text = (min + progress * step).toString()
-            }
-
-            override fun onStartTrackingTouch(s: SeekBar) {}
-
-            override fun onStopTrackingTouch(s: SeekBar) = send(s.progress)
-        })
-
-        fun nudge(delta: Int) {
-            val p = (bar.progress + delta).coerceIn(0, steps)
-            bar.progress = p
-            send(p)
+        val next = (cur + dir * step).coerceIn(min, max)
+        if (next == cur) return
+        val failure = Picture.setOne(act, "brightness", next.toString()).exceptionOrNull()
+        if (failure == null) {
+            cur = next
+            act.runOnUiThread { onValue(next) }
+        } else {
+            report(next, failure.message.orEmpty())
         }
+    }
 
-        AlertDialog.Builder(act)
-            .setTitle("Luminosité")
-            .setView(box)
-            .setNeutralButton("−") { _, _ -> }
-            .setNegativeButton("Fermer", null)
-            .create()
-            .also { d ->
-                d.show()
-                // « − » et « + » ne ferment pas la fenêtre.
-                d.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { nudge(-1) }
-            }
+    private fun report(tried: Int, error: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastReport < 8000) return
+        lastReport = now
+        val text = Picture.diagnose(act, "brightness", tried.toString(), error)
+        loaded = false
+        act.runOnUiThread {
+            if (act.isFinishing) return@runOnUiThread
+            val tv = TextView(act)
+            tv.text = text
+            tv.textSize = 13f
+            tv.setTextIsSelectable(true)
+            val p = Ui.dp(act, 20)
+            tv.setPadding(p, p / 2, p, 0)
+            val sv = ScrollView(act)
+            sv.addView(tv)
+            AlertDialog.Builder(act).setTitle("Luminosité refusée par la TV").setView(sv).setPositiveButton("OK", null).show()
+        }
     }
 }

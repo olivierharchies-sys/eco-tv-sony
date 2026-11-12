@@ -288,6 +288,40 @@ object Picture {
     fun setOne(ctx: Context, target: String, value: String): Result<Unit> =
         set(ctx, listOf(setting(target, value))).map { }
 
+    /** Compte rendu d'un refus : ce que la TV annonce pour ce réglage, son état, et si elle accepte la valeur actuelle. */
+    fun diagnose(ctx: Context, target: String, tried: String, error: String): String = buildString {
+        appendLine("Réglage : ${labelOf(target)} ($target)")
+        appendLine("Valeur envoyée : $tried")
+        appendLine("Réponse de la TV : $error")
+        appendLine()
+        val setting = readSettings(ctx).getOrNull()?.firstOrNull { it.target == target }
+        if (setting == null) {
+            appendLine("La TV ne liste pas ce réglage.")
+        } else {
+            appendLine("Valeur actuelle : ${setting.current}")
+            appendLine(
+                "Proposé par la TV : " + setting.cands.joinToString(", ") {
+                    (if (it.numeric) "${it.min.roundToInt()}–${it.max.roundToInt()}" else it.value) +
+                        if (it.available) "" else " (indisponible)"
+                }
+            )
+            val same = set(ctx, listOf(setting(target, setting.current)))
+            appendLine(
+                "Renvoyer la valeur actuelle : " +
+                    if (same.isSuccess) "accepté" else "refusé aussi (${same.exceptionOrNull()?.message})"
+            )
+        }
+        appendLine()
+        BraviaClient.rawCall(ctx, "system", "getPowerStatus", JSONArray()).fold(
+            onSuccess = { appendLine("État : ${it.optJSONObject(0)?.optString("status")}") },
+            onFailure = { appendLine("État : ${it.message}") }
+        )
+        BraviaClient.rawCall(ctx, "avContent", "getPlayingContentInfo", JSONArray()).fold(
+            onSuccess = { appendLine("Contenu : ${clip(it.optJSONObject(0)?.toString().orEmpty(), 300)}") },
+            onFailure = { appendLine("Contenu : ${it.message}") }
+        )
+    }
+
     private val LABELS = mapOf(
         "pictureMode" to "Mode d'image",
         "autoPictureMode" to "Mode d'image automatique",

@@ -29,6 +29,7 @@ class RemoteActivity : Activity() {
     private lateinit var segDecoder: TextView
     private lateinit var dpadView: View
     private lateinit var touchpad: View
+    private var brightness: BrightnessControl? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,7 +127,7 @@ class RemoteActivity : Activity() {
         val volumeRow = row(
             dp(104),
             rocker("VOL", "VolumeUp", "VolumeDown"),
-            brightnessCell(),
+            brightnessRocker(),
             rocker("CH", "ChannelUp", "ChannelDown")
         )
         (volumeRow.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
@@ -169,6 +170,7 @@ class RemoteActivity : Activity() {
     }
 
     override fun onDestroy() {
+        brightness?.close()
         super.onDestroy()
         actions.close()
         shortcuts.close()
@@ -315,7 +317,10 @@ class RemoteActivity : Activity() {
     }
 
     /** Double bouton + / − avec un libellé au milieu. Reste appuyé = répétition. */
-    private fun rocker(label: String, upKey: String, downKey: String): LinearLayout {
+    private fun rocker(label: String, upKey: String, downKey: String): LinearLayout =
+        rocker(label, { repeat -> actions.key(upKey, repeat = repeat) }, { repeat -> actions.key(downKey, repeat = repeat) })
+
+    private fun rocker(label: String, onUp: (Boolean) -> Unit, onDown: (Boolean) -> Unit): LinearLayout {
         val box = LinearLayout(this)
         box.orientation = LinearLayout.VERTICAL
         box.background = Ui.rounded(this, Ui.SURFACE, 34)
@@ -324,19 +329,27 @@ class RemoteActivity : Activity() {
         plus.setPadding(dp(12), dp(12), dp(12), dp(12))
         plus.contentDescription = "$label plus"
         plus.background = Ui.rounded(this, Color.TRANSPARENT, 34)
-        Ui.holdRepeat(plus) { repeat -> actions.key(upKey, repeat = repeat) }
+        Ui.holdRepeat(plus) { repeat -> onUp(repeat) }
 
         val minus = icon(R.drawable.ic_remove, Ui.TEXT)
         minus.setPadding(dp(12), dp(12), dp(12), dp(12))
         minus.contentDescription = "$label moins"
         minus.background = Ui.rounded(this, Color.TRANSPARENT, 34)
-        Ui.holdRepeat(minus) { repeat -> actions.key(downKey, repeat = repeat) }
+        Ui.holdRepeat(minus) { repeat -> onDown(repeat) }
 
         val text = TextView(this)
         text.text = label
         text.setTextColor(Ui.DIM)
         text.textSize = 11f
         text.gravity = Gravity.CENTER
+        // Appui long sur « VOL » : curseur de volume.
+        if (label == "VOL") {
+            text.setOnLongClickListener {
+                it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                actions.showVolume()
+                true
+            }
+        }
 
         box.addView(plus, LinearLayout.LayoutParams(MATCH, 0, 1f))
         box.addView(text, LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -344,27 +357,14 @@ class RemoteActivity : Activity() {
         return box
     }
 
-    /** Bouton rond de la rangée du volume : luminosité de l'image (curseur). */
-    private fun brightnessCell(): FrameLayout {
-        val cell = FrameLayout(this)
-        val btn = icon(R.drawable.ic_brightness, Ui.TEXT)
-        btn.setPadding(dp(18), dp(18), dp(18), dp(18))
-        btn.contentDescription = "Luminosité de l'image"
-        btn.background = Ui.rounded(this, Ui.SURFACE, 32)
-        btn.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            BrightnessDialog(this).show()
-        }
-        // Appui long : curseur de volume (comme l'ancien bouton muet).
-        btn.setOnLongClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            actions.showVolume()
-            true
-        }
-        val lp = FrameLayout.LayoutParams(dp(64), dp(64))
-        lp.gravity = Gravity.CENTER
-        cell.addView(btn, lp)
-        return cell
+    /** Double bouton + / − de la luminosité de l'image, comme celui du volume. */
+    private fun brightnessRocker(): LinearLayout {
+        lateinit var label: TextView
+        val control = BrightnessControl(this) { label.text = "LUM $it" }
+        brightness = control
+        val box = rocker("LUM", { _ -> control.nudge(1) }, { _ -> control.nudge(-1) })
+        label = box.getChildAt(1) as TextView
+        return box
     }
 
     private fun mediaBar(): LinearLayout {

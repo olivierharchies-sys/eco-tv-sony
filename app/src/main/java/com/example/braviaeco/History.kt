@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
@@ -72,7 +73,7 @@ object History {
     }
 }
 
-/** Icônes des applications de la TV : adresses lues dans la liste de la TV, images gardées en mémoire. */
+/** Icônes des applications de la TV : adresses lues dans la liste de la TV, images gardées en mémoire et sur le disque. */
 object AppIcons {
     private val urls = ConcurrentHashMap<String, String>()
     private val bitmaps = ConcurrentHashMap<String, Bitmap>()
@@ -82,26 +83,42 @@ object AppIcons {
         apps.forEach { if (it.icon.isNotEmpty()) urls[it.uri] = it.icon }
     }
 
-    fun bitmap(uri: String): Bitmap? = bitmaps[uri]
+    private fun file(ctx: Context, uri: String): File {
+        val dir = File(ctx.applicationContext.filesDir, "icons")
+        dir.mkdirs()
+        return File(dir, Integer.toHexString(uri.hashCode()) + "_" + uri.length + ".png")
+    }
 
-    /** Télécharge en arrière-plan les icônes manquantes ; [onUpdate] est appelé (thread principal) à chaque nouvelle icône. */
+    /** Icône déjà connue (mémoire, sinon fichier gardé sur le téléphone) ; null si à télécharger. */
+    fun bitmap(ctx: Context, uri: String): Bitmap? {
+        bitmaps[uri]?.let { return it }
+        val f = file(ctx, uri)
+        if (!f.exists()) return null
+        val bmp = runCatching { BitmapFactory.decodeFile(f.path) }.getOrNull()
+        if (bmp == null) f.delete() else bitmaps[uri] = bmp
+        return bmp
+    }
+
+    /** Télécharge en arrière-plan les icônes jamais vues (puis gardées sur le disque) ; [onUpdate] à chaque nouvelle icône. */
     fun prepare(ctx: Context, uris: Collection<String>, onUpdate: () -> Unit) {
         val app = ctx.applicationContext
-        val wanted = uris.filter { it.isNotEmpty() && !bitmaps.containsKey(it) }
-        if (wanted.isEmpty()) return
         Thread {
+            val wanted = uris.filter { it.isNotEmpty() && bitmap(app, it) == null }
+            if (wanted.isEmpty()) return@Thread
             if (wanted.any { !urls.containsKey(it) }) {
                 BraviaClient.getApps(app).getOrNull()?.let { remember(it) }
             }
             for (uri in wanted) {
-                val bmp = urls[uri]?.let { download(app, it) } ?: continue
+                val bytes = urls[uri]?.let { download(app, it) } ?: continue
+                val bmp = runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull() ?: continue
+                runCatching { file(app, uri).writeBytes(bytes) }
                 bitmaps[uri] = bmp
                 ui.post(onUpdate)
             }
         }.start()
     }
 
-    private fun download(ctx: Context, spec: String): Bitmap? = runCatching {
+    private fun download(ctx: Context, spec: String): ByteArray? = runCatching {
         val full = if (spec.startsWith("/")) "http://${Prefs.ip(ctx)}$spec" else spec
         val conn = URL(full).openConnection() as HttpURLConnection
         try {
@@ -110,7 +127,7 @@ object AppIcons {
             val psk = Prefs.psk(ctx)
             if (psk.isNotEmpty()) conn.setRequestProperty("X-Auth-PSK", psk)
             if (conn.responseCode !in 200..299) return@runCatching null
-            conn.inputStream.use { BitmapFactory.decodeStream(it) }
+            conn.inputStream.use { it.readBytes() }
         } finally {
             conn.disconnect()
         }

@@ -261,7 +261,7 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
                 val size = Ui.dp(act, 40)
                 val image = ImageView(act)
                 image.scaleType = ImageView.ScaleType.FIT_CENTER
-                val bmp = if (row.iconUri.isEmpty()) null else AppIcons.bitmap(row.iconUri)
+                val bmp = if (row.iconUri.isEmpty()) null else AppIcons.bitmap(act, row.iconUri)
                 if (bmp != null) image.setImageBitmap(bmp)
                 line.addView(image, LinearLayout.LayoutParams(size, size).also { it.rightMargin = Ui.dp(act, 14) })
 

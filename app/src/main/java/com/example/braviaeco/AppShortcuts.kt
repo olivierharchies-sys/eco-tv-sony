@@ -6,6 +6,9 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
+import android.view.View
+import android.widget.BaseAdapter
+import android.widget.ImageView
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -106,18 +109,20 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
             pickTvApps()
             return
         }
-        val labels = (apps.map { it.title } + "✎  Choisir les applications…").toTypedArray()
-        dialog()
-            .setTitle("Applications de la TV")
-            .setItems(labels) { _, which ->
-                if (which == apps.size) {
-                    pickTvApps()
-                } else {
-                    val app = apps[which]
-                    actions.runIo { BraviaClient.launchApp(act, app.uri) }
-                }
+        val rows = apps.map { IconRow(it.title, "", it.uri) } + IconRow("✎  Choisir les applications…", "", "")
+        showIconList("Applications de la TV", rows) { which ->
+            if (which == apps.size) {
+                pickTvApps()
+            } else {
+                launchTvApp(apps[which])
             }
-            .show()
+        }
+    }
+
+    /** Lance une application de la TV et la garde dans l'historique. */
+    private fun launchTvApp(app: TvApp) {
+        History.add(act, HistoryEntry("app", app.title, app.uri))
+        actions.runIo { BraviaClient.launchApp(act, app.uri) }
     }
 
     /** Applications de streaming installées sur la TV (reconnues par leur nom), lancées via l'API. */
@@ -136,6 +141,7 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
                     Ui.toast(act, it.message ?: "Applications indisponibles (TV allumée ?)")
                     return@post
                 }
+                AppIcons.remember(all)
                 val found = all.filter { app ->
                     val title = app.title.lowercase()
                     STREAMING.any { title.contains(it) }
@@ -151,13 +157,7 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
     }
 
     private fun showStreamingList(apps: List<TvApp>) {
-        dialog()
-            .setTitle("Streaming")
-            .setItems(apps.map { it.title }.toTypedArray()) { _, which ->
-                val app = apps[which]
-                actions.runIo { BraviaClient.launchApp(act, app.uri) }
-            }
-            .show()
+        showIconList("Streaming", apps.map { IconRow(it.title, "", it.uri) }) { which -> launchTvApp(apps[which]) }
     }
 
     /** Lit la liste des applications installées sur la TV et laisse cocher celles à garder. */
@@ -199,6 +199,85 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
         }
     }
 
+    // ================================================================== historique
+
+    /** Derniers programmes et applications lancés : un appui les relance. */
+    fun showHistory() {
+        val all = History.list(act)
+        if (all.isEmpty()) {
+            Ui.toast(act, "Historique vide : il se remplit au fil des lancements")
+            return
+        }
+        val rows = all.map { IconRow(it.title, whenText(it.time), if (it.kind == "app") it.ref else "") }
+        showIconList("Historique", rows, neutral = "Effacer" to { History.clear(act) }) { which ->
+            val e = all[which]
+            History.add(act, e.copy(time = System.currentTimeMillis()))
+            when (e.kind) {
+                "app" -> actions.runIo { BraviaClient.launchApp(act, e.ref) }
+                "decoder" -> runDecoderApp(DecoderApp(e.title, e.keys), record = false)
+                else -> actions.runIo { BraviaClient.playContent(act, e.ref).also { actions.notifyStateChanged() } }
+            }
+        }
+    }
+
+    private fun whenText(time: Long): String {
+        val day = 24L * 3600 * 1000
+        val fmt = if (System.currentTimeMillis() - time < day) "HH:mm" else "dd/MM HH:mm"
+        return java.text.SimpleDateFormat(fmt, java.util.Locale.FRANCE).format(java.util.Date(time))
+    }
+
+    /** Ligne d'une liste avec icône : [iconUri] = URI d'application dont on affiche l'icône (vide = aucune). */
+    private class IconRow(val label: String, val sub: String, val iconUri: String)
+
+    private fun showIconList(
+        title: String,
+        rows: List<IconRow>,
+        neutral: Pair<String, () -> Unit>? = null,
+        onPick: (Int) -> Unit
+    ) {
+        val adapter = object : BaseAdapter() {
+            override fun getCount() = rows.size
+            override fun getItem(position: Int) = rows[position]
+            override fun getItemId(position: Int) = position.toLong()
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = rows[position]
+                val line = LinearLayout(act)
+                line.orientation = LinearLayout.HORIZONTAL
+                line.gravity = android.view.Gravity.CENTER_VERTICAL
+                val pad = Ui.dp(act, 16)
+                line.setPadding(pad, Ui.dp(act, 8), pad, Ui.dp(act, 8))
+
+                val size = Ui.dp(act, 40)
+                val image = ImageView(act)
+                image.scaleType = ImageView.ScaleType.FIT_CENTER
+                val bmp = if (row.iconUri.isEmpty()) null else AppIcons.bitmap(row.iconUri)
+                if (bmp != null) image.setImageBitmap(bmp)
+                line.addView(image, LinearLayout.LayoutParams(size, size).also { it.rightMargin = Ui.dp(act, 14) })
+
+                val texts = LinearLayout(act)
+                texts.orientation = LinearLayout.VERTICAL
+                val label = TextView(act)
+                label.text = row.label
+                label.setTextColor(Ui.TEXT)
+                label.textSize = 16f
+                texts.addView(label)
+                if (row.sub.isNotEmpty()) {
+                    val sub = TextView(act)
+                    sub.text = row.sub
+                    sub.setTextColor(Ui.DIM)
+                    sub.textSize = 12f
+                    texts.addView(sub)
+                }
+                line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                return line
+            }
+        }
+        val builder = dialog().setTitle(title).setAdapter(adapter) { _, which -> onPick(which) }
+        if (neutral != null) builder.setNeutralButton(neutral.first) { _, _ -> neutral.second() }
+        builder.show()
+        AppIcons.prepare(act, rows.map { it.iconUri }) { if (!act.isFinishing) adapter.notifyDataSetChanged() }
+    }
+
     // ================================================================== décodeur
 
     fun showDecoderApps() {
@@ -217,7 +296,8 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
     }
 
     /** Prépare la TV (allumée, bonne entrée HDMI) puis envoie les touches au décodeur. */
-    private fun runDecoderApp(app: DecoderApp) {
+    private fun runDecoderApp(app: DecoderApp, record: Boolean = true) {
+        if (record && app.name.isNotBlank()) History.add(act, HistoryEntry("decoder", app.name, "", app.keys))
         actions.runIo {
             val r = Decoder.run(act, app.keys)
             actions.notifyStateChanged()
@@ -327,7 +407,7 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
         addButton("⌫ Effacer") { if (keys.isNotEmpty()) { keys.removeAt(keys.size - 1); render() } }
         addButton("▶ Tester") {
             if (keys.isEmpty()) Ui.toast(act, "Ajoute d'abord des touches")
-            else runDecoderApp(DecoderApp(name.text.toString(), ArrayList(keys)))
+            else runDecoderApp(DecoderApp(name.text.toString(), ArrayList(keys)), record = false)
         }
         box.addView(buttons)
 

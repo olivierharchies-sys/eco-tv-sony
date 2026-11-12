@@ -30,7 +30,10 @@ data class TvInput(
 }
 
 /** Une application installée sur la TV (navigateur, Netflix, YouTube…). */
-data class TvApp(val title: String, val uri: String)
+data class TvApp(val title: String, val uri: String, val icon: String = "")
+
+/** Contenu en cours sur la TV (chaîne du tuner : numéro, nom et programme). */
+data class PlayingContent(val uri: String, val title: String, val program: String, val number: String)
 
 /** Réglages enregistrés sur le téléphone. */
 object Prefs {
@@ -429,7 +432,7 @@ object BraviaClient {
             val o = arr.optJSONObject(i) ?: continue
             val uri = o.optString("uri")
             if (uri.isEmpty()) continue
-            list.add(TvApp(o.optString("title", uri), uri))
+            list.add(TvApp(o.optString("title", uri), uri, o.optString("icon")))
         }
         list.sortedBy { it.title.lowercase() }
     }
@@ -455,6 +458,20 @@ object BraviaClient {
     }
 
     // ---------------------------------------------------------------- volume, infos, redémarrage
+
+    /** Contenu affiché par la TV ; échoue sur une application ou en veille. */
+    fun currentContent(ctx: Context): Result<PlayingContent> = runCatching {
+        val o = call(ctx, "avContent", "getPlayingContentInfo", JSONArray(), timeoutMs = 2000).optJSONObject(0)
+        val uri = o?.optString("uri").orEmpty()
+        if (uri.isEmpty()) error("Contenu inconnu")
+        PlayingContent(uri, o!!.optString("title"), o.optString("programTitle"), o.optString("dispNum"))
+    }
+
+    /** Reprend un contenu (chaîne, entrée) à partir de son URI. */
+    fun playContent(ctx: Context, uri: String): Result<Unit> = runCatching {
+        call(ctx, "avContent", "setPlayContent", JSONArray().put(JSONObject().put("uri", uri)))
+        Unit
+    }
 
     /** Numéro de chaîne du tuner de la TV (absent sur HDMI : le décodeur ne le communique pas). */
     fun currentChannel(ctx: Context): Result<String> = runCatching {

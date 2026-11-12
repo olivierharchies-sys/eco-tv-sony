@@ -191,7 +191,14 @@ class RemoteActivity : Activity() {
         try {
             infoWorker.execute {
                 val vol = BraviaClient.getVolume(this).getOrNull()?.first
-                val ch = BraviaClient.currentChannel(this).getOrNull()
+                val content = BraviaClient.currentContent(this).getOrNull()
+                val ch = content?.number?.takeIf { it.isNotEmpty() }
+                // Chaîne du tuner : gardée dans l'historique pour la reprendre plus tard.
+                if (content != null && content.uri.startsWith("tv:", ignoreCase = true)) {
+                    val name = listOf(ch.orEmpty(), content.title).filter { it.isNotEmpty() }.joinToString(" ")
+                    val label = listOf(name, content.program).filter { it.isNotEmpty() }.joinToString(" — ")
+                    History.add(this, HistoryEntry("content", label.ifEmpty { content.uri }, content.uri))
+                }
                 runOnUiThread {
                     if (isFinishing) return@runOnUiThread
                     if (vol != null) volLabel?.text = "VOL $vol"
@@ -319,6 +326,17 @@ class RemoteActivity : Activity() {
         texts.addView(subtitle)
 
         bar.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        // Historique : à gauche du bouton muet.
+        val history = icon(R.drawable.ic_history, Ui.DIM)
+        history.setPadding(dp(10), dp(10), dp(10), dp(10))
+        history.contentDescription = "Historique"
+        history.background = Ui.rounded(this, Color.TRANSPARENT, 22)
+        history.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            shortcuts.showHistory()
+        }
+        bar.addView(history, LinearLayout.LayoutParams(dp(44), dp(44)))
 
         // Muet : à gauche du bouton de changement de télécommande.
         val mute = icon(R.drawable.ic_mute, Ui.DIM)

@@ -35,6 +35,7 @@ class RemoteActivity : Activity() {
     private lateinit var touchpad: View
     private var brightness: BrightnessControl? = null
     private var volLabel: TextView? = null
+    private var muteBtn: ImageView? = null
     private var chLabel: TextView? = null
     private val infoWorker = Executors.newSingleThreadExecutor()
     private val infoHandler = Handler(Looper.getMainLooper())
@@ -179,6 +180,15 @@ class RemoteActivity : Activity() {
         renderState()
         actions.refreshPower()
         refreshInfo(0)
+        paintMute()
+        if (CallPause.enabled(this)) CallPause.apply(this)
+    }
+
+    /** Muet vert = pause automatique pendant les appels activée. */
+    private fun paintMute() {
+        val on = CallPause.enabled(this)
+        muteBtn?.setColorFilter(if (on) Ui.ACCENT else Ui.DIM)
+        muteBtn?.contentDescription = if (on) "Muet (pause auto des appels activée)" else "Muet"
     }
 
     /** Relit volume et chaîne sur la TV (regroupe les appuis rapprochés). */
@@ -346,6 +356,22 @@ class RemoteActivity : Activity() {
         mute.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             actions.sendKey("Mute")
+        }
+        muteBtn = mute
+        paintMute()
+        // Appui long : pause automatique de la TV pendant un appel (téléphone, WhatsApp…), reprise ensuite.
+        mute.setOnLongClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            val on = !CallPause.enabled(this)
+            CallPause.setEnabled(this, on)
+            paintMute()
+            if (on && android.os.Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 7)
+            }
+            Ui.toast(this, if (on) "Pause auto pendant les appels : activée" else "Pause auto pendant les appels : désactivée")
+            true
         }
         bar.addView(mute, LinearLayout.LayoutParams(dp(44), dp(44)))
 

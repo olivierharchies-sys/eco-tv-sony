@@ -151,7 +151,16 @@ class PictureSettingsActivity : Activity() {
             runOnUiThread {
                 val failure = result.exceptionOrNull()
                 if (failure != null) {
-                    Ui.toast(this, "Refusé par la TV : ${failure.message}")
+                    val msg = failure.message.orEmpty()
+                    val locked = msg.contains("Illegal State", ignoreCase = true) || msg.contains("(7)")
+                    Ui.toast(
+                        this,
+                        if (locked) {
+                            "« ${Picture.labelOf(target)} » n'est pas modifiable maintenant (mode d'image, entrée ou contenu en cours). Change de mode puis réessaie."
+                        } else {
+                            "Refusé par la TV : « ${Picture.labelOf(target)} » → $msg"
+                        }
+                    )
                     load()
                 } else if (reloadAfter) {
                     load()

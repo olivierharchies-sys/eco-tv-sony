@@ -188,7 +188,7 @@ class RemoteActivity : Activity() {
     private fun paintMute() {
         val on = CallPause.enabled(this)
         muteBtn?.setColorFilter(if (on) Ui.ACCENT else Ui.DIM)
-        muteBtn?.contentDescription = if (on) "Muet (pause auto des appels activée)" else "Muet"
+        muteBtn?.contentDescription = if (on) "Muet (son coupé et pause pendant les appels activés)" else "Muet"
     }
 
     /** Relit volume et chaîne sur la TV (regroupe les appuis rapprochés). */
@@ -359,7 +359,7 @@ class RemoteActivity : Activity() {
         }
         muteBtn = mute
         paintMute()
-        // Appui long : pause automatique de la TV pendant un appel (téléphone, WhatsApp…), reprise ensuite.
+        // Appui long : son à 0 et pause pendant un appel (téléphone, WhatsApp…), puis son et lecture rétablis.
         mute.setOnLongClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             val on = !CallPause.enabled(this)
@@ -370,7 +370,7 @@ class RemoteActivity : Activity() {
             ) {
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 7)
             }
-            Ui.toast(this, if (on) "Pause auto pendant les appels : activée" else "Pause auto pendant les appels : désactivée")
+            Ui.toast(this, if (on) "Son coupé et pause pendant les appels : activés" else "Son coupé et pause pendant les appels : désactivés")
             true
         }
         bar.addView(mute, LinearLayout.LayoutParams(dp(44), dp(44)))

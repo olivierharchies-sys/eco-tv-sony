@@ -172,6 +172,7 @@ object BraviaClient {
     fun setPower(ctx: Context, on: Boolean): Result<Unit> = runCatching {
         call(ctx, "system", "setPowerStatus", JSONArray().put(JSONObject().put("status", on)))
         Prefs.savePower(ctx, on)
+        Decoder.syncPower(ctx, on)
     }
 
     /** true si la TV est allumée. Échoue si elle est injoignable. */
@@ -187,7 +188,9 @@ object BraviaClient {
      * Bascule marche/arrêt : renvoie le nouvel état demandé (true = allumée).
      * Si la TV ne répond pas (veille profonde), envoie un réveil réseau puis réessaie.
      */
-    fun togglePower(ctx: Context): Result<Boolean> = runCatching { toggle(ctx) }
+    fun togglePower(ctx: Context): Result<Boolean> = runCatching {
+        toggle(ctx).also { Decoder.syncPower(ctx, it) }
+    }
 
     private fun powerParams(on: Boolean) = JSONArray().put(JSONObject().put("status", on))
 

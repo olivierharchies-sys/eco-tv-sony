@@ -40,7 +40,8 @@ object CallPause {
 
 /**
  * Surveille le mode audio du téléphone : dès qu'un appel (opérateur, WhatsApp, etc.) sonne ou démarre,
- * envoie « Pause » à l'appareil qui est à l'écran (TV ou décodeur), puis « Lecture » à la fin de l'appel.
+ * met le volume de la TV à 0 et envoie « Pause » à l'appareil qui est à l'écran (TV ou décodeur),
+ * puis rend le volume et envoie « Lecture » à la fin de l'appel.
  */
 class CallPauseService : Service() {
 
@@ -54,6 +55,9 @@ class CallPauseService : Service() {
 
     /** Appareil auquel « Pause » a été envoyé (null = rien à reprendre). Touché seulement par [io]. */
     private var paused: Route? = null
+
+    /** Volume de la TV avant l'appel (null = volume non touché). Touché seulement par [io]. */
+    private var savedVolume: Int? = null
 
     private val poll = object : Runnable {
         override fun run() {
@@ -80,10 +84,16 @@ class CallPauseService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(poll)
-        // Appel en cours à l'arrêt du service : on rend la lecture avant de partir.
+        // Appel en cours à l'arrêt du service : on rend le son et la lecture avant de partir.
         val app = applicationContext
         val route = paused
-        if (route != null) Thread { send(app, route, "Play") }.start()
+        val volume = savedVolume
+        if (route != null || volume != null) {
+            Thread {
+                if (volume != null) BraviaClient.setVolume(app, volume)
+                if (route != null) send(app, route, "Play")
+            }.start()
+        }
         io.shutdown()
         super.onDestroy()
     }
@@ -112,6 +122,11 @@ class CallPauseService : Service() {
                 if (status != "active") return@execute
                 val uri = BraviaClient.currentInputUri(app).getOrNull()
                 val route = if (uri != null && uri.startsWith("extInput:", ignoreCase = true)) Route.DEVICE else Route.TV
+                // Son à 0 pendant l'appel ; le volume d'origine est gardé pour la fin de l'appel.
+                BraviaClient.getVolume(app).getOrNull()?.let { (volume, _, _) ->
+                    if (volume > 0 && BraviaClient.setVolume(app, 0).isSuccess) savedVolume = volume
+                }
+                // La pause ne change rien sur un direct ; sur une vidéo, la lecture reprendra après l'appel.
                 if (send(app, route, "Pause").isSuccess) paused = route
             }
         }
@@ -121,6 +136,9 @@ class CallPauseService : Service() {
         val app = applicationContext
         runCatching {
             io.execute {
+                val volume = savedVolume
+                savedVolume = null
+                if (volume != null) BraviaClient.setVolume(app, volume)
                 val route = paused ?: return@execute
                 paused = null
                 send(app, route, "Play")
@@ -134,15 +152,15 @@ class CallPauseService : Service() {
     private fun notification(): Notification {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val builder = if (Build.VERSION.SDK_INT >= 26) {
-            nm.createNotificationChannel(NotificationChannel(CHANNEL, "Pause pendant les appels", NotificationManager.IMPORTANCE_MIN))
+            nm.createNotificationChannel(NotificationChannel(CHANNEL, "Son coupé pendant les appels", NotificationManager.IMPORTANCE_MIN))
             Notification.Builder(this, CHANNEL)
         } else {
             Notification.Builder(this)
         }
         return builder
             .setSmallIcon(R.drawable.ic_mute)
-            .setContentTitle("Pause automatique pendant les appels")
-            .setContentText("Active : la lecture reprend à la fin de l'appel")
+            .setContentTitle("Son coupé et pause pendant les appels")
+            .setContentText("Actif : le son et la lecture reprennent à la fin de l'appel")
             .setOngoing(true)
             .build()
     }

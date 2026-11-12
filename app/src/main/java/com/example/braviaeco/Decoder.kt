@@ -14,6 +14,8 @@ object Decoder {
     const val APP_PREFIX = "APP:"
 
     private const val KEY_HOME = 3
+    private const val KEY_SLEEP = 223
+    private const val KEY_WAKEUP = 224
     private const val SWITCH_DELAY_MS = 2500L
     private const val WAKE_DELAY_MS = 6000L
     private const val KEY_GAP_CEC_MS = 450L
@@ -63,6 +65,26 @@ object Decoder {
             ctx, code,
             direction = if (start) AtvRemote.PRESS_START_LONG else AtvRemote.PRESS_END_LONG
         )
+    }
+
+    /**
+     * Allume (true) ou met en veille (false) le décodeur en Wi-Fi direct, avec les touches « réveil » et
+     * « veille » (et non la touche marche/arrêt, qui bascule et risquerait d'inverser l'état).
+     * Sans décodeur associé en Wi-Fi, rien n'est fait : c'est alors le HDMI-CEC de la TV qui s'en charge.
+     */
+    fun setPower(ctx: Context, on: Boolean): Result<Unit> {
+        if (!wifi(ctx)) return Result.success(Unit)
+        return AtvRemote.sendKey(ctx, if (on) KEY_WAKEUP else KEY_SLEEP)
+    }
+
+    /**
+     * Aligne le décodeur sur la TV, sans attendre ni faire échouer l'action de l'utilisateur
+     * (un décodeur injoignable est simplement ignoré).
+     */
+    fun syncPower(ctx: Context, on: Boolean) {
+        if (!wifi(ctx)) return
+        val app = ctx.applicationContext
+        Thread { runCatching { setPower(app, on) } }.start()
     }
 
     /** Accueil du décodeur. */

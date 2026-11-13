@@ -41,6 +41,7 @@ class MainActivity : Activity() {
             intent?.hasCategory(Intent.CATEGORY_LAUNCHER) == true &&
             Prefs.ip(this).isNotEmpty()
         ) {
+            RoomSwitch.startup(this)
             startActivity(Intent(this, RemoteActivity::class.java))
             finish()
             return

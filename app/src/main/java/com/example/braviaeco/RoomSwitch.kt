@@ -156,6 +156,17 @@ object RoomSwitch {
     }
 
     /**
+     * Démarrage de l'appli (icône) : la pièce est redétectée même si elle n'a pas changé,
+     * pour ouvrir la télécommande de la TV à proximité.
+     */
+    fun startup(ctx: Context) {
+        if (!enabled(ctx)) return
+        sp(ctx).edit().remove("room_last").apply()
+        BtRoom.forceNext()
+        if (effectiveMethod(ctx) == METHOD_BT) Ui.toast(ctx, "Recherche de la TV à proximité…")
+    }
+
+    /**
      * En mode Bluetooth, lance un scan (~10 s) puis rappelle onSwitch si la pièce a changé.
      * Le premier [pick] d'onResume utilise la mesure précédente ; celle-ci corrige ensuite.
      */

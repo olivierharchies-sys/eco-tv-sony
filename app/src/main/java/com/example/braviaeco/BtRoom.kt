@@ -81,8 +81,18 @@ object BtRoom {
 
     /** Scan automatique (respecte un délai minimal entre deux scans). onDone : thread principal. */
     fun refresh(ctx: Context, onDone: () -> Unit) {
-        if (scanning || SystemClock.elapsedRealtime() - lastScan < MIN_GAP_MS) return
-        scan(ctx) { onDone() }
+        if (scanning || (lastScan != 0L && SystemClock.elapsedRealtime() - lastScan < MIN_GAP_MS)) return
+        // Arrêt anticipé dès que les deux TV associées ont été vues.
+        val wanted = listOf(Prefs.DEVICE_SONY, Prefs.DEVICE_EDENWOOD).filter { associated(ctx, it) }
+            .map { address(ctx, it) to name(ctx, it) }
+        scan(ctx, until = { seen ->
+            wanted.all { (addr, name) -> seen.any { it.address == addr || (name.isNotEmpty() && it.name == name) } }
+        }) { onDone() }
+    }
+
+    /** Démarrage de l'appli : le prochain [refresh] scanne même si un scan récent existe. */
+    fun forceNext() {
+        lastScan = 0L
     }
 
     /**
@@ -90,7 +100,7 @@ object BtRoom {
      * triés du plus fort au plus faible, sur le thread principal.
      */
     @SuppressLint("MissingPermission")
-    fun scan(ctx: Context, onDone: (List<Seen>) -> Unit) {
+    fun scan(ctx: Context, until: ((Collection<Seen>) -> Boolean)? = null, onDone: (List<Seen>) -> Unit) {
         val app = ctx.applicationContext
         val bt = adapter(app)
         if (scanning || bt == null || !isOn(app) || !hasPermission(app)) {
@@ -99,6 +109,7 @@ object BtRoom {
         }
         scanning = true
         val found = HashMap<String, Seen>()
+        var finish: () -> Unit = {}
 
         fun record(device: BluetoothDevice?, rssi: Int, fallbackName: String?) {
             if (device == null) return
@@ -106,6 +117,7 @@ object BtRoom {
             val name = runCatching { device.name }.getOrNull() ?: fallbackName ?: ""
             val prev = found[addr]
             if (prev == null || rssi > prev.rssi) found[addr] = Seen(addr, name.ifEmpty { prev?.name ?: "" }, rssi)
+            if (until != null && runCatching { until(found.values) }.getOrDefault(false)) main.post { finish() }
         }
 
         val receiver = object : BroadcastReceiver() {
@@ -137,7 +149,10 @@ object BtRoom {
         val scanner = runCatching { bt.bluetoothLeScanner }.getOrNull()
         runCatching { scanner?.startScan(le) }
 
-        main.postDelayed({
+        var done = false
+        finish = finish@{
+            if (done) return@finish
+            done = true
             runCatching { bt.cancelDiscovery() }
             runCatching { scanner?.stopScan(le) }
             runCatching { app.unregisterReceiver(receiver) }
@@ -153,6 +168,7 @@ object BtRoom {
             lastScan = now
             scanning = false
             onDone(found.values.sortedByDescending { it.rssi })
-        }, SCAN_MS)
+        }
+        main.postDelayed({ finish() }, SCAN_MS)
     }
 }

@@ -106,6 +106,13 @@ class Remote2Activity : Activity() {
             finish()
             return
         }
+        RoomSwitch.follow(this) {
+            if (it == Prefs.DEVICE_EDENWOOD) {
+                Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
+                startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
+                finish()
+            }
+        }
         renderState()
         buildTiles()
         actions.refreshPower()

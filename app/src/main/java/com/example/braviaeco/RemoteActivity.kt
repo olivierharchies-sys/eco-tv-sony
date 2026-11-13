@@ -194,6 +194,13 @@ class RemoteActivity : Activity() {
             finish()
             return
         }
+        RoomSwitch.follow(this) {
+            if (it == Prefs.DEVICE_EDENWOOD) {
+                Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
+                startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
+                finish()
+            }
+        }
         renderState()
         actions.refreshPower()
         refreshInfo(0)

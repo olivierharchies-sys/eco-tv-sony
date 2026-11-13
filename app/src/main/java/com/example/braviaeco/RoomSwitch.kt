@@ -1,6 +1,7 @@
 package com.example.braviaeco
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.wifi.WifiManager
@@ -30,6 +31,41 @@ object RoomSwitch {
 
     fun hasPermission(ctx: Context): Boolean =
         ctx.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    const val METHOD_WIFI = "wifi"
+    const val METHOD_BT = "bt"
+
+    /** Méthode choisie : bornes Wi-Fi du mesh ou Bluetooth des TV. */
+    fun method(ctx: Context): String = sp(ctx).getString("room_method", METHOD_WIFI) ?: METHOD_WIFI
+
+    fun setMethod(ctx: Context, m: String) {
+        sp(ctx).edit().putString("room_method", m).remove("room_last").apply()
+    }
+
+    /** Repli : si le Wi-Fi (ou le Bluetooth) du téléphone est coupé, on utilise l'autre méthode. */
+    fun fallback(ctx: Context): Boolean = sp(ctx).getBoolean("room_fallback", true)
+
+    fun setFallback(ctx: Context, on: Boolean) {
+        sp(ctx).edit().putBoolean("room_fallback", on).remove("room_last").apply()
+    }
+
+    fun wifiOn(ctx: Context): Boolean = runCatching { wifi(ctx)?.isWifiEnabled == true }.getOrDefault(false)
+
+    private fun wifiReady(ctx: Context) = wifiOn(ctx) && hasPermission(ctx) &&
+        (accessPoints(ctx, Prefs.DEVICE_SONY).isNotEmpty() || accessPoints(ctx, Prefs.DEVICE_EDENWOOD).isNotEmpty())
+
+    private fun btReady(ctx: Context) = BtRoom.isOn(ctx) && BtRoom.hasPermission(ctx) &&
+        (BtRoom.associated(ctx, Prefs.DEVICE_SONY) || BtRoom.associated(ctx, Prefs.DEVICE_EDENWOOD))
+
+    /** Méthode réellement utilisée maintenant (null : aucune possible). */
+    fun effectiveMethod(ctx: Context): String? {
+        val wifi = wifiReady(ctx)
+        val bt = btReady(ctx)
+        return when (method(ctx)) {
+            METHOD_BT -> if (bt) METHOD_BT else if (fallback(ctx) && !BtRoom.isOn(ctx) && wifi) METHOD_WIFI else null
+            else -> if (wifi) METHOD_WIFI else if (fallback(ctx) && !wifiOn(ctx) && bt) METHOD_BT else null
+        }
+    }
 
     private fun key(device: String) = "room_aps_$device"
 
@@ -68,7 +104,14 @@ object RoomSwitch {
 
     /** TV de la pièce où l'on est (null : inconnu ou trop proche pour trancher). */
     @Suppress("DEPRECATION")
-    private fun guess(ctx: Context): String? {
+    private fun guess(ctx: Context): String? = when (effectiveMethod(ctx)) {
+        METHOD_WIFI -> guessWifi(ctx)
+        METHOD_BT -> decide(BtRoom.level(ctx, Prefs.DEVICE_SONY), BtRoom.level(ctx, Prefs.DEVICE_EDENWOOD))
+        else -> null
+    }
+
+    @Suppress("DEPRECATION")
+    private fun guessWifi(ctx: Context): String? {
         val sony = accessPoints(ctx, Prefs.DEVICE_SONY)
         val eden = accessPoints(ctx, Prefs.DEVICE_EDENWOOD)
         if (sony.isEmpty() && eden.isEmpty()) return null
@@ -84,6 +127,11 @@ object RoomSwitch {
 
         val s = sony.mapNotNull { levels[it] }.maxOrNull()
         val e = eden.mapNotNull { levels[it] }.maxOrNull()
+        return decide(s, e)
+    }
+
+    /** Pièce selon les deux signaux (dBm) ; null si rien vu ou trop proche pour trancher. */
+    private fun decide(s: Int?, e: Int?): String? {
         return when {
             s == null && e == null -> null
             e == null -> Prefs.DEVICE_SONY
@@ -100,10 +148,22 @@ object RoomSwitch {
      * tant qu'on ne change pas de pièce.
      */
     fun pick(ctx: Context): String? {
-        if (!enabled(ctx) || !hasPermission(ctx)) return null
+        if (!enabled(ctx)) return null
         val room = guess(ctx) ?: return null
         if (room == sp(ctx).getString("room_last", null)) return null
         sp(ctx).edit().putString("room_last", room).apply()
         return room
+    }
+
+    /**
+     * En mode Bluetooth, lance un scan (~10 s) puis rappelle onSwitch si la pièce a changé.
+     * Le premier [pick] d'onResume utilise la mesure précédente ; celle-ci corrige ensuite.
+     */
+    fun follow(activity: Activity, onSwitch: (String) -> Unit) {
+        if (!enabled(activity) || effectiveMethod(activity) != METHOD_BT) return
+        BtRoom.refresh(activity) {
+            if (activity.isFinishing || activity.isDestroyed) return@refresh
+            pick(activity)?.let(onSwitch)
+        }
     }
 }

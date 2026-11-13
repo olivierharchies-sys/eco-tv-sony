@@ -28,6 +28,8 @@ class MainActivity : Activity() {
     private lateinit var edenwoodMacField: EditText
     private lateinit var roomState: TextView
     private lateinit var roomToggle: Button
+    private lateinit var roomMethod: Button
+    private lateinit var roomFallback: Button
     private lateinit var edenwoodState: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -365,7 +367,10 @@ class MainActivity : Activity() {
                 "ton choix fait à la main avec le bouton « télécommande » est respecté tant que tu ne changes " +
                 "pas de pièce. Android demande la permission de localisation (et la localisation activée) " +
                 "pour lire la borne ; l'appli n'utilise pas ta position. Chaque borne a souvent une adresse " +
-                "par bande Wi-Fi (2,4 et 5 GHz) : si la bascule rate, répète l'association sur l'autre bande.",
+                "par bande Wi-Fi (2,4 et 5 GHz) : si la bascule rate, répète l'association sur l'autre bande.\n" +
+                "Méthode Bluetooth : place-toi près de chaque TV et choisis son Bluetooth dans la liste " +
+                "(le plus fort est en haut). La mesure prend environ 10 s à l'ouverture de la télécommande. " +
+                "Le repli utilise l'autre méthode quand le Wi-Fi ou le Bluetooth du téléphone est coupé.",
             12f, Ui.DIM, false
         ))
         roomState = cardText("", 14f, Color.WHITE, false)
@@ -390,11 +395,42 @@ class MainActivity : Activity() {
         toggleLp.topMargin = Ui.dp(this, 8)
         card.addView(roomToggle, toggleLp)
 
+        roomMethod = Button(this)
+        roomMethod.isAllCaps = false
+        roomMethod.setTextColor(Color.WHITE)
+        roomMethod.setBackgroundResource(R.drawable.btn_surface)
+        roomMethod.setOnClickListener {
+            val bt = RoomSwitch.method(this) != RoomSwitch.METHOD_BT
+            RoomSwitch.setMethod(this, if (bt) RoomSwitch.METHOD_BT else RoomSwitch.METHOD_WIFI)
+            if (bt) askBtPermission()
+            showRoomState()
+        }
+        card.addView(roomMethod, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 48))
+            .apply { topMargin = Ui.dp(this@MainActivity, 8) })
+
+        roomFallback = Button(this)
+        roomFallback.isAllCaps = false
+        roomFallback.setTextColor(Color.WHITE)
+        roomFallback.setBackgroundResource(R.drawable.btn_surface)
+        roomFallback.setOnClickListener {
+            RoomSwitch.setFallback(this, !RoomSwitch.fallback(this))
+            showRoomState()
+        }
+        card.addView(roomFallback, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 48))
+            .apply { topMargin = Ui.dp(this@MainActivity, 8) })
+
         cardButton(card, "Cette borne = TV Sony") { learnAccessPoint(Prefs.DEVICE_SONY, "la Sony") }
         cardButton(card, "Cette borne = TV Edenwood") { learnAccessPoint(Prefs.DEVICE_EDENWOOD, "la Edenwood") }
         cardButton(card, "Oublier les bornes associées") {
             RoomSwitch.clearAccessPoints(this)
             tell("Bornes oubliées")
+            showRoomState()
+        }
+        cardButton(card, "Bluetooth de la TV Sony…") { learnBt(Prefs.DEVICE_SONY, "la Sony") }
+        cardButton(card, "Bluetooth de la TV Edenwood…") { learnBt(Prefs.DEVICE_EDENWOOD, "la Edenwood") }
+        cardButton(card, "Oublier les Bluetooth associés") {
+            BtRoom.clear(this)
+            tell("Bluetooth oubliés")
             showRoomState()
         }
         showRoomState()
@@ -418,6 +454,34 @@ class MainActivity : Activity() {
         showRoomState()
     }
 
+    private fun askBtPermission(): Boolean {
+        if (BtRoom.hasPermission(this)) return true
+        requestPermissions(BtRoom.permissions(), 10)
+        tell("Autorise les appareils à proximité (sert seulement à mesurer le Bluetooth des TV)")
+        return false
+    }
+
+    /** Scan ~10 s puis liste des appareils vus (plus fort en haut) : on choisit celui de la TV. */
+    private fun learnBt(device: String, name: String) {
+        if (!askBtPermission()) return
+        if (!BtRoom.isOn(this)) { tell("Active le Bluetooth du téléphone"); return }
+        tell("Recherche Bluetooth (10 s)…")
+        BtRoom.scan(this) { list ->
+            if (isFinishing) return@scan
+            if (list.isEmpty()) { tell("Aucun appareil Bluetooth vu"); return@scan }
+            val labels = list.map { "${it.name.ifEmpty { "(sans nom)" }} · ${it.rssi} dBm\n${it.address}" }.toTypedArray()
+            AlertDialog.Builder(this)
+                .setTitle("Bluetooth de $name")
+                .setItems(labels) { _, i ->
+                    BtRoom.associate(this, device, list[i])
+                    tell("${list[i].name.ifEmpty { list[i].address }} associé à $name")
+                    showRoomState()
+                }
+                .setNegativeButton("Annuler", null)
+                .show()
+        }
+    }
+
     private fun showRoomState() {
         if (!::roomState.isInitialized) return
         val current = RoomSwitch.current(this)
@@ -428,8 +492,26 @@ class MainActivity : Activity() {
         }
         roomState.text = "Borne actuelle : $now\n" +
             "Associées : Sony ${RoomSwitch.accessPoints(this, Prefs.DEVICE_SONY).size} · " +
-            "Edenwood ${RoomSwitch.accessPoints(this, Prefs.DEVICE_EDENWOOD).size}"
+            "Edenwood ${RoomSwitch.accessPoints(this, Prefs.DEVICE_EDENWOOD).size}\n" +
+            "Bluetooth : Sony ${btLabel(Prefs.DEVICE_SONY)} · Edenwood ${btLabel(Prefs.DEVICE_EDENWOOD)}\n" +
+            "Wi-Fi ${if (RoomSwitch.wifiOn(this)) "actif" else "coupé"} · Bluetooth " +
+            "${if (BtRoom.isOn(this)) "actif" else "coupé"} · en cours : " +
+            when (RoomSwitch.effectiveMethod(this)) {
+                RoomSwitch.METHOD_WIFI -> "bornes Wi-Fi"
+                RoomSwitch.METHOD_BT -> "Bluetooth"
+                else -> "aucune"
+            }
+        roomMethod.text = if (RoomSwitch.method(this) == RoomSwitch.METHOD_BT) "Méthode : Bluetooth des TV"
+            else "Méthode : bornes Wi-Fi"
+        roomFallback.text = if (RoomSwitch.fallback(this)) "Repli sur l'autre méthode : activé ✓"
+            else "Repli sur l'autre méthode : désactivé"
         roomToggle.text = if (RoomSwitch.enabled(this)) "Bascule automatique : activée ✓" else "Bascule automatique : désactivée"
+    }
+
+    private fun btLabel(device: String): String {
+        if (!BtRoom.associated(this, device)) return "—"
+        val n = BtRoom.name(this, device).ifEmpty { BtRoom.address(this, device) }
+        return BtRoom.level(this, device)?.let { "$n ($it dBm)" } ?: n
     }
 
     override fun onResume() {

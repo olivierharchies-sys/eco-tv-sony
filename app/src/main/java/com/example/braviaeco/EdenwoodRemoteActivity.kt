@@ -84,12 +84,8 @@ class EdenwoodRemoteActivity : Activity() {
             onClick = { timerDialog() },
             onLongClick = { timerDialog() }
         )
-        val guideBtn = RoundButton.create(
-            this, R.drawable.ic_tv, "Guide des programmes",
-            onClick = { actions.key("Guide") },
-            onLongClick = { actions.key("Guide") }
-        )
-        val dpadArea = DpadArea(this, padBox, settingsBtn, appsBtn, dp(50), timerBtn, guideBtn)
+        // Pas de bouton en bas à droite (le guide reste dans « Plus »).
+        val dpadArea = DpadArea(this, padBox, settingsBtn, appsBtn, dp(50), timerBtn, null)
         val dpadLp = LinearLayout.LayoutParams(MATCH, 0, 1f)
         dpadLp.topMargin = dp(10)
         dpadLp.bottomMargin = dp(10)
@@ -239,7 +235,7 @@ class EdenwoodRemoteActivity : Activity() {
     /** Lance une application (nom de paquet ou lien) sur la Edenwood et la garde dans les récentes. */
     private fun launchApp(app: EdenwoodApp) {
         EdenwoodApps.addRecent(this, app)
-        actions.runIo { AtvRemote.launch(this, app.link, device) }
+        actions.runIo { AtvRemote.launch(this, EdenwoodApps.linkFor(app), device) }
     }
 
     /** Page web réglée dans l'appli, ouverte dans le navigateur de la Edenwood. */
@@ -256,11 +252,45 @@ class EdenwoodRemoteActivity : Activity() {
 
     private fun showApps() {
         val apps = EdenwoodApps.list(this)
-        val labels = apps.map { it.title } + "✎  Gérer la liste…"
-        dialog().setTitle("Streaming")
-            .setItems(labels.toTypedArray()) { _, i -> if (i < apps.size) launchApp(apps[i]) else manageApps() }
-            .setNegativeButton("Fermer", null)
-            .show()
+        lateinit var dlg: AlertDialog
+        val list = LinearLayout(this)
+        list.orientation = LinearLayout.VERTICAL
+        list.setPadding(dp(12), dp(8), dp(12), dp(8))
+        apps.forEach { app -> list.addView(appRow(app.title, EdenwoodApps.color(app)) { dlg.dismiss(); launchApp(app) }) }
+        list.addView(appRow("Gérer la liste…", Ui.SURFACE, "✎") { dlg.dismiss(); manageApps() })
+        val scroll = android.widget.ScrollView(this)
+        scroll.addView(list)
+        dlg = dialog().setTitle("Streaming").setView(scroll).setNegativeButton("Fermer", null).create()
+        dlg.show()
+    }
+
+    /** Ligne d'application : pastille colorée avec l'initiale (la TV ne fournit pas les icônes) et nom. */
+    private fun appRow(title: String, color: Int, mark: String? = null, onClick: () -> Unit): LinearLayout {
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER_VERTICAL
+        row.setPadding(dp(8), dp(8), dp(8), dp(8))
+        row.isClickable = true
+        row.background = Ui.rounded(this, Color.TRANSPARENT, 14)
+        row.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            onClick()
+        }
+        val badge = TextView(this)
+        badge.text = mark ?: title.trim().take(1).uppercase()
+        badge.gravity = Gravity.CENTER
+        badge.textSize = 18f
+        badge.setTextColor(Color.WHITE)
+        badge.setTypeface(badge.typeface, android.graphics.Typeface.BOLD)
+        badge.background = Ui.rounded(this, color, 22)
+        row.addView(badge, LinearLayout.LayoutParams(dp(44), dp(44)))
+        val label = TextView(this)
+        label.text = title
+        label.textSize = 16f
+        label.setTextColor(Ui.TEXT)
+        label.setPadding(dp(14), 0, 0, 0)
+        row.addView(label, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        return row
     }
 
     /** Ajouter une application (nom + paquet ou lien), en retirer une, ou revenir à la liste d'origine. */
@@ -285,7 +315,7 @@ class EdenwoodRemoteActivity : Activity() {
         box.orientation = LinearLayout.VERTICAL
         box.setPadding(dp(20), dp(8), dp(20), 0)
         val name = EditText(this).apply { hint = "Nom (ex. Auvio)"; setSingleLine(true) }
-        val link = EditText(this).apply { hint = "Paquet ou lien (ex. com.netflix.ninja)"; setSingleLine(true) }
+        val link = EditText(this).apply { hint = "Lien ou paquet (ex. https://www.netflix.com/title)"; setSingleLine(true) }
         box.addView(name)
         box.addView(link)
         dialog().setTitle("Ajouter une application").setView(box)
@@ -631,13 +661,41 @@ data class EdenwoodApp(val title: String, val link: String)
 object EdenwoodApps {
     private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
 
+    /**
+     * Liens d'ouverture reconnus par Android TV (le lien « market://launch » n'ouvre pas ces applis).
+     * Les anciens noms de paquet enregistrés sont convertis par [linkFor].
+     */
     private val DEFAULTS = listOf(
-        EdenwoodApp("Netflix", "com.netflix.ninja"),
-        EdenwoodApp("YouTube", "com.google.android.youtube.tv"),
-        EdenwoodApp("Prime Video", "com.amazon.amazonvideo.livingroom"),
-        EdenwoodApp("Disney+", "com.disney.disneyplus"),
-        EdenwoodApp("Spotify", "com.spotify.tv.android")
+        EdenwoodApp("Netflix", "https://www.netflix.com/title"),
+        EdenwoodApp("YouTube", "https://www.youtube.com"),
+        EdenwoodApp("Prime Video", "https://app.primevideo.com"),
+        EdenwoodApp("Disney+", "https://www.disneyplus.com"),
+        EdenwoodApp("Spotify", "spotify://")
     )
+
+    private val PACKAGE_LINKS = mapOf(
+        "com.netflix.ninja" to "https://www.netflix.com/title",
+        "com.google.android.youtube.tv" to "https://www.youtube.com",
+        "com.amazon.amazonvideo.livingroom" to "https://app.primevideo.com",
+        "com.disney.disneyplus" to "https://www.disneyplus.com",
+        "com.spotify.tv.android" to "spotify://"
+    )
+
+    /** Lien à envoyer : paquet connu converti en lien, sinon tel quel. */
+    fun linkFor(app: EdenwoodApp): String = PACKAGE_LINKS[app.link.trim()] ?: app.link
+
+    private val COLORS = mapOf(
+        "netflix" to 0xFFE50914.toInt(), "youtube" to 0xFFFF0000.toInt(), "prime" to 0xFF00A8E1.toInt(),
+        "disney" to 0xFF113CCF.toInt(), "spotify" to 0xFF1DB954.toInt()
+    )
+
+    /** Couleur de la pastille : couleur de la marque si connue, sinon couleur stable tirée du nom. */
+    fun color(app: EdenwoodApp): Int {
+        val t = app.title.lowercase()
+        COLORS.entries.firstOrNull { t.contains(it.key) }?.let { return it.value }
+        val palette = intArrayOf(0xFF7E57C2.toInt(), 0xFF26A69A.toInt(), 0xFFEF6C00.toInt(), 0xFF5C6BC0.toInt(), 0xFFAD1457.toInt())
+        return palette[(t.hashCode() and 0x7FFFFFFF) % palette.size]
+    }
 
     private fun decode(raw: String?): List<EdenwoodApp> =
         (raw ?: "").split('\n').mapNotNull { line ->

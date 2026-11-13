@@ -3,152 +3,203 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/dw_bg"
+    android:gravity="center"
     android:orientation="vertical"
-    android:padding="10dp">
+    android:padding="12dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginBottom="4dp"
-        android:layout_marginTop="4dp"
         android:layout_weight="1"
+        android:layout_marginTop="0dp"
+        android:gravity="center"
         android:orientation="horizontal">
-        <ImageView
-            android:id="@+id/dw_pad_back"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_marginStart="0dp"
-            android:layout_marginEnd="4dp"
-            android:layout_weight="1"
-            android:background="@drawable/dw_key"
-            android:contentDescription="@string/dw_cd_back"
-            android:padding="15dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_back"
-            android:tint="#FF9AA6BD" />
-        <ImageView
-            android:id="@+id/dw_pad_up"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
-            android:layout_weight="1"
-            android:background="@drawable/dw_key"
-            android:contentDescription="@string/dw_cd_up"
-            android:padding="13dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_chevron_up"
-            android:tint="#FFE4E8F2" />
-        <ImageView
-            android:id="@+id/dw_pad_home"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="0dp"
-            android:layout_weight="1"
-            android:background="@drawable/dw_key"
-            android:contentDescription="@string/dw_cd_home"
-            android:padding="15dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_home"
-            android:tint="#FF9AA6BD" />
-    </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginBottom="4dp"
-        android:layout_marginTop="4dp"
-        android:layout_weight="1"
-        android:orientation="horizontal">
-        <ImageView
-            android:id="@+id/dw_pad_left"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="0dp"
-            android:layout_marginEnd="4dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
-            android:contentDescription="@string/dw_cd_left"
-            android:padding="13dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_chevron_left"
-            android:tint="#FFE4E8F2" />
-        <TextView
-            android:id="@+id/dw_pad_ok"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
-            android:layout_weight="1"
-            android:background="@drawable/dw_acc_cyan"
-            android:contentDescription="@string/dw_cd_ok"
-            android:fontFamily="sans-serif-medium"
             android:gravity="center"
-            android:text="@string/dw_pad_ok"
-            android:textColor="#FFFFFFFF"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-        <ImageView
-            android:id="@+id/dw_pad_right"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/dw_pad_back"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@string/dw_cd_back"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_back"
+                android:tint="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="0dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
-            android:contentDescription="@string/dw_cd_right"
-            android:padding="13dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_chevron_right"
-            android:tint="#FFE4E8F2" />
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/dw_pad_up"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@string/dw_cd_up"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_chevron_up"
+                android:tint="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/dw_pad_home"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@string/dw_cd_home"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_home"
+                android:tint="#FFFFFFFF" />
+        </LinearLayout>
+
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginBottom="4dp"
-        android:layout_marginTop="4dp"
         android:layout_weight="1"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
         android:orientation="horizontal">
-        <ImageView
-            android:id="@+id/dw_pad_source"
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="0dp"
-            android:layout_marginEnd="4dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
-            android:contentDescription="@string/dw_cd_source"
-            android:padding="15dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_input"
-            android:tint="#FF9AA6BD" />
-        <ImageView
-            android:id="@+id/dw_pad_down"
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/dw_pad_left"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@string/dw_cd_left"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_chevron_left"
+                android:tint="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
-            android:contentDescription="@string/dw_cd_down"
-            android:padding="13dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_chevron_down"
-            android:tint="#FFE4E8F2" />
-        <ImageView
-            android:id="@+id/dw_pad_options"
+            android:gravity="center"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/dw_pad_ok"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:background="@drawable/dw_round_remote"
+                android:contentDescription="@string/dw_cd_ok"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:singleLine="true"
+                android:text="@string/dw_pad_ok"
+                android:textColor="#FFFFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="0dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
-            android:contentDescription="@string/dw_cd_options"
-            android:padding="15dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_more"
-            android:tint="#FF9AA6BD" />
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/dw_pad_right"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@string/dw_cd_right"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_chevron_right"
+                android:tint="#FFFFFFFF" />
+        </LinearLayout>
+
     </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/dw_pad_source"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@string/dw_cd_source"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_input"
+                android:tint="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/dw_pad_down"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@string/dw_cd_down"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_chevron_down"
+                android:tint="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/dw_pad_options"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@string/dw_cd_options"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_more"
+                android:tint="#FFFFFFFF" />
+        </LinearLayout>
+
+    </LinearLayout>
+
 </LinearLayout>

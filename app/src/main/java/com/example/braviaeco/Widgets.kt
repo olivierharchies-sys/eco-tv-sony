@@ -72,10 +72,11 @@ class PowerWidgetProvider : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.widget_power)
             val on = Prefs.lastPower(context)
 
+            // Anneau vert quand la TV est allumée.
             views.setInt(
-                R.id.power_root,
+                R.id.power_ring,
                 "setBackgroundResource",
-                if (on == true) R.drawable.tile_on else R.drawable.tile_off
+                if (on == true) R.drawable.dw_round_on else R.drawable.dw_round_idle
             )
             views.setTextViewText(
                 R.id.power_state,

@@ -3,8 +3,9 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/dw_bg"
+    android:gravity="center"
     android:orientation="vertical"
-    android:padding="14dp">
+    android:padding="12dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -13,8 +14,8 @@
         android:orientation="horizontal">
 
         <ImageView
-            android:layout_width="16dp"
-            android:layout_height="16dp"
+            android:layout_width="15dp"
+            android:layout_height="15dp"
             android:contentDescription="@null"
             android:src="@drawable/ic_timer"
             android:tint="#FFFCD34D" />
@@ -22,9 +23,11 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="7dp"
+            android:ellipsize="end"
             android:fontFamily="sans-serif-medium"
-            android:letterSpacing="0.14"
+            android:letterSpacing="0.12"
+            android:singleLine="true"
             android:text="@string/dw_sleep_title"
             android:textColor="#FFFCD34D"
             android:textSize="11sp"
@@ -35,6 +38,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:layout_marginStart="8dp"
             android:ellipsize="end"
             android:fontFamily="sans-serif"
             android:gravity="end"
@@ -48,150 +52,172 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
         android:orientation="horizontal">
+
         <LinearLayout
             android:id="@+id/dw_sleep_15"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="0dp"
-            android:layout_marginEnd="4dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
             android:contentDescription="@string/dw_cd_sleep"
             android:gravity="center"
             android:orientation="vertical">
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@null"
                 android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:singleLine="true"
                 android:text="15"
                 android:textColor="#FFFCD34D"
-                android:textSize="21sp"
-                android:textStyle="bold"
-                />
+                android:textSize="15sp"
+                android:textStyle="bold" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
                 android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
                 android:text="@string/dw_sleep_min"
-                android:textColor="#FF98A2B3"
-                android:textSize="10sp"
-                />
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
         </LinearLayout>
+
         <LinearLayout
             android:id="@+id/dw_sleep_30"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
             android:contentDescription="@string/dw_cd_sleep"
             android:gravity="center"
             android:orientation="vertical">
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@null"
                 android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:singleLine="true"
                 android:text="30"
                 android:textColor="#FFFCD34D"
-                android:textSize="21sp"
-                android:textStyle="bold"
-                />
+                android:textSize="15sp"
+                android:textStyle="bold" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
                 android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
                 android:text="@string/dw_sleep_min"
-                android:textColor="#FF98A2B3"
-                android:textSize="10sp"
-                />
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
         </LinearLayout>
+
         <LinearLayout
             android:id="@+id/dw_sleep_60"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
             android:contentDescription="@string/dw_cd_sleep"
             android:gravity="center"
             android:orientation="vertical">
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@null"
                 android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:singleLine="true"
                 android:text="60"
                 android:textColor="#FFFCD34D"
-                android:textSize="21sp"
-                android:textStyle="bold"
-                />
+                android:textSize="15sp"
+                android:textStyle="bold" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
                 android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
                 android:text="@string/dw_sleep_min"
-                android:textColor="#FF98A2B3"
-                android:textSize="10sp"
-                />
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
         </LinearLayout>
+
         <LinearLayout
             android:id="@+id/dw_sleep_90"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
             android:contentDescription="@string/dw_cd_sleep"
             android:gravity="center"
             android:orientation="vertical">
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@null"
                 android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:singleLine="true"
                 android:text="90"
                 android:textColor="#FFFCD34D"
-                android:textSize="21sp"
-                android:textStyle="bold"
-                />
+                android:textSize="15sp"
+                android:textStyle="bold" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
                 android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
                 android:text="@string/dw_sleep_min"
-                android:textColor="#FF98A2B3"
-                android:textSize="10sp"
-                />
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
         </LinearLayout>
+
         <LinearLayout
             android:id="@+id/dw_sleep_cancel"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="0dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
             android:contentDescription="@string/dw_cd_sleep_cancel"
             android:gravity="center"
             android:orientation="vertical">
             <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:background="@drawable/dw_round_idle"
                 android:contentDescription="@null"
+                android:padding="13dp"
+                android:scaleType="fitCenter"
                 android:src="@drawable/ic_remove"
                 android:tint="#FFFB7185" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-medium"
-                android:text="@string/dw_sleep_cancel"
-                android:textColor="#FF98A2B3"
-                android:textSize="10sp"
                 android:layout_marginTop="3dp"
-                />
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
+                android:text="@string/dw_sleep_cancel"
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
         </LinearLayout>
+
     </LinearLayout>
+
 </LinearLayout>

@@ -3,38 +3,53 @@
     android:id="@+id/power_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/tile_off"
+    android:background="@drawable/dw_bg"
     android:gravity="center"
     android:orientation="horizontal"
-    android:padding="12dp">
+    android:padding="10dp">
 
-    <ImageView
-        android:layout_width="30dp"
-        android:layout_height="30dp"
-        android:contentDescription="@string/widget_power_label"
-        android:scaleType="fitCenter"
-        android:src="@drawable/ic_power" />
+    <FrameLayout
+        android:id="@+id/power_ring"
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:background="@drawable/dw_round_idle">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_gravity="center"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_power"
+            android:tint="#FFFFFFFF" />
+    </FrameLayout>
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_weight="1"
         android:layout_marginStart="10dp"
         android:orientation="vertical">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.12"
+            android:singleLine="true"
             android:text="@string/widget_power_title"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"
+            android:textColor="#FF5EEAD4"
+            android:textSize="11sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/power_state"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif"
+            android:singleLine="true"
             android:text="@string/widget_power_unknown"
-            android:textColor="#CCFFFFFF"
-            android:textSize="12sp" />
+            android:textColor="#FFE5E7EB"
+            android:textSize="13sp" />
     </LinearLayout>
 </LinearLayout>

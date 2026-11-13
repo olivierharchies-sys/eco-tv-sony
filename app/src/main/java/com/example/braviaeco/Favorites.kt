@@ -171,7 +171,8 @@ abstract class SlotWidgetProvider : AppWidgetProvider() {
             val id = SLOTS[i]
             if (i < items.size) {
                 views.setViewVisibility(id, View.VISIBLE)
-                views.setTextViewText(id, items[i])
+                views.setTextViewText(LABELS[i], items[i])
+                views.setTextViewText(BADGES[i], badge(items[i]))
                 val intent = Intent(context, javaClass).setAction(action).putExtra(EXTRA_INDEX, i)
                 views.setOnClickPendingIntent(id, PendingIntent.getBroadcast(context, baseCode + i, intent, flags))
             } else {
@@ -187,6 +188,21 @@ abstract class SlotWidgetProvider : AppWidgetProvider() {
             R.id.slot_1, R.id.slot_2, R.id.slot_3, R.id.slot_4,
             R.id.slot_5, R.id.slot_6, R.id.slot_7, R.id.slot_8
         )
+        private val LABELS = intArrayOf(
+            R.id.slot_1_label, R.id.slot_2_label, R.id.slot_3_label, R.id.slot_4_label,
+            R.id.slot_5_label, R.id.slot_6_label, R.id.slot_7_label, R.id.slot_8_label
+        )
+        private val BADGES = intArrayOf(
+            R.id.slot_1_badge, R.id.slot_2_badge, R.id.slot_3_badge, R.id.slot_4_badge,
+            R.id.slot_5_badge, R.id.slot_6_badge, R.id.slot_7_badge, R.id.slot_8_badge
+        )
+
+        /** Texte du rond : numéro de chaîne s'il y en a un en tête, sinon l'initiale. */
+        private fun badge(label: String): String {
+            val t = label.trim()
+            val digits = t.takeWhile { it.isDigit() }
+            return if (digits.isNotEmpty()) digits.take(3) else t.take(1).uppercase()
+        }
     }
 }
 

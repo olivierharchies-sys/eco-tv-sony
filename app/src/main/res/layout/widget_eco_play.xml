@@ -2,35 +2,37 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/ep_bg"
+    android:background="@drawable/dw_bg"
+    android:gravity="center"
     android:orientation="vertical"
-    android:padding="10dp">
+    android:padding="12dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingBottom="8dp">
+        android:orientation="horizontal">
 
         <ImageView
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:layout_marginStart="4dp"
-            android:importantForAccessibility="no"
+            android:layout_width="15dp"
+            android:layout_height="15dp"
+            android:contentDescription="@null"
             android:src="@drawable/ic_eco"
-            android:tint="#FF34C77B" />
+            android:tint="#FF5EEAD4" />
 
         <TextView
             android:id="@+id/ep_title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:paddingStart="8dp"
-            android:paddingEnd="4dp"
+            android:layout_marginStart="7dp"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.12"
+            android:singleLine="true"
             android:text="@string/widget_title_default"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textColor="#FF5EEAD4"
+            android:textSize="11sp"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -38,100 +40,182 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
         android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/ep_off"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="0dp"
-            android:layout_marginEnd="3dp"
             android:layout_weight="1"
-            android:background="@drawable/ep_btn"
             android:gravity="center"
-            android:maxLines="1"
-            android:text="@string/mode_off"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/ep_off"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@null"
+                android:padding="11dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_brightness"
+                android:tint="#FFFFFFFF" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
+                android:text="@string/mode_off"
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
+        </LinearLayout>
 
-        <TextView
-            android:id="@+id/ep_low"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="3dp"
-            android:layout_marginEnd="3dp"
             android:layout_weight="1"
-            android:background="@drawable/ep_btn"
             android:gravity="center"
-            android:maxLines="1"
-            android:text="@string/mode_low"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/ep_low"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/dw_round_on"
+                android:contentDescription="@null"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_eco"
+                android:tint="#FFFFFFFF" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
+                android:text="@string/mode_low"
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
+        </LinearLayout>
 
-        <TextView
-            android:id="@+id/ep_high"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="3dp"
-            android:layout_marginEnd="3dp"
             android:layout_weight="1"
-            android:background="@drawable/ep_btn"
             android:gravity="center"
-            android:maxLines="1"
-            android:text="@string/mode_high"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/ep_high"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@null"
+                android:padding="9dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_eco"
+                android:tint="#FFFFFFFF" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
+                android:text="@string/mode_high"
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
+        </LinearLayout>
 
-        <TextView
-            android:id="@+id/ep_picture_off"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="3dp"
-            android:layout_marginEnd="0dp"
             android:layout_weight="1"
-            android:background="@drawable/ep_btn"
             android:gravity="center"
-            android:maxLines="1"
-            android:text="@string/mode_picture_off"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/ep_picture_off"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@null"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_tv"
+                android:tint="#FFFFFFFF" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
+                android:text="@string/mode_picture_off"
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
+        </LinearLayout>
+
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="8dp"
         android:layout_weight="1"
+        android:layout_marginTop="4dp"
+        android:gravity="center"
         android:orientation="horizontal">
 
-        <ImageView
-            android:id="@+id/ep_play"
+        <FrameLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="0dp"
-            android:layout_marginEnd="4dp"
-            android:layout_weight="1"
-            android:background="@drawable/ep_btn_media"
-            android:contentDescription="@string/widget_play"
-            android:padding="9dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_play" />
+            android:layout_weight="1" />
 
-        <ImageView
-            android:id="@+id/ep_pause"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="0dp"
             android:layout_weight="1"
-            android:background="@drawable/ep_btn_media"
-            android:contentDescription="@string/widget_pause"
-            android:padding="9dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_pause" />
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/ep_play"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/dw_round_remote"
+                android:contentDescription="@string/dw_cd_play"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_play"
+                android:tint="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/ep_pause"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@string/dw_cd_pause"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_pause"
+                android:tint="#FFFFFFFF" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1" />
+
     </LinearLayout>
+
 </LinearLayout>

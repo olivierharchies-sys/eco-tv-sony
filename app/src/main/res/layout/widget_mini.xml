@@ -2,73 +2,170 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg"
+    android:background="@drawable/dw_bg"
     android:gravity="center"
-    android:orientation="horizontal"
+    android:orientation="vertical"
     android:padding="8dp">
 
-    <ImageView
-        android:id="@+id/mini_vol_down"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_marginEnd="3dp"
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="@drawable/btn_idle"
-        android:contentDescription="@string/mini_vol_down"
-        android:padding="12dp"
-        android:scaleType="fitCenter"
-        android:src="@drawable/ic_vol_down" />
-
-    <ImageView
-        android:id="@+id/mini_mute"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_marginStart="3dp"
-        android:layout_marginEnd="3dp"
-        android:layout_weight="1"
-        android:background="@drawable/btn_idle"
-        android:contentDescription="@string/mini_mute"
-        android:padding="12dp"
-        android:scaleType="fitCenter"
-        android:src="@drawable/ic_mute" />
-
-    <ImageView
-        android:id="@+id/mini_vol_up"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_marginStart="3dp"
-        android:layout_marginEnd="10dp"
-        android:layout_weight="1"
-        android:background="@drawable/btn_idle"
-        android:contentDescription="@string/mini_vol_up"
-        android:padding="12dp"
-        android:scaleType="fitCenter"
-        android:src="@drawable/ic_vol_up" />
-
-    <TextView
-        android:id="@+id/mini_ch_down"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_marginStart="10dp"
-        android:layout_marginEnd="3dp"
-        android:layout_weight="1"
-        android:background="@drawable/btn_idle"
+        android:layout_marginTop="0dp"
         android:gravity="center"
-        android:text="@string/mini_ch_down"
-        android:textColor="#FFFFFF"
-        android:textSize="13sp"
-        android:textStyle="bold" />
+        android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/mini_ch_up"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_marginStart="3dp"
-        android:layout_weight="1"
-        android:background="@drawable/btn_idle"
-        android:gravity="center"
-        android:text="@string/mini_ch_up"
-        android:textColor="#FFFFFF"
-        android:textSize="13sp"
-        android:textStyle="bold" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/mini_vol_down"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@null"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_vol_down"
+                android:tint="#FFFFFFFF" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
+                android:text="VOL −"
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/mini_mute"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@null"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_mute"
+                android:tint="#FFFFFFFF" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
+                android:text="Muet"
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/mini_vol_up"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@null"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_vol_up"
+                android:tint="#FFFFFFFF" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
+                android:text="VOL +"
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/mini_ch_down"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@null"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:singleLine="true"
+                android:text="@string/mini_ch_down"
+                android:textColor="#FFFFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
+                android:text="Chaîne"
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/mini_ch_up"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/dw_round_remote"
+                android:contentDescription="@null"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:singleLine="true"
+                android:text="@string/mini_ch_up"
+                android:textColor="#FFFFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
+                android:text="Chaîne"
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+    </LinearLayout>
+
 </LinearLayout>

@@ -3,8 +3,9 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/dw_bg"
+    android:gravity="center"
     android:orientation="vertical"
-    android:padding="14dp">
+    android:padding="12dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -13,8 +14,8 @@
         android:orientation="horizontal">
 
         <ImageView
-            android:layout_width="16dp"
-            android:layout_height="16dp"
+            android:layout_width="15dp"
+            android:layout_height="15dp"
             android:contentDescription="@null"
             android:src="@drawable/ic_tune"
             android:tint="#FFC4B5FD" />
@@ -22,9 +23,11 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="7dp"
+            android:ellipsize="end"
             android:fontFamily="sans-serif-medium"
-            android:letterSpacing="0.14"
+            android:letterSpacing="0.12"
+            android:singleLine="true"
             android:text="@string/dw_image_title"
             android:textColor="#FFC4B5FD"
             android:textSize="11sp"
@@ -35,6 +38,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:layout_marginStart="8dp"
             android:ellipsize="end"
             android:fontFamily="sans-serif"
             android:gravity="end"
@@ -48,83 +52,93 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
         android:orientation="horizontal">
+
         <LinearLayout
             android:id="@+id/dw_img_4k"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="0dp"
-            android:layout_marginEnd="4dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_acc_violet"
             android:contentDescription="@string/dw_cd_img_4k"
             android:gravity="center"
             android:orientation="vertical">
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/dw_round_on"
+                android:contentDescription="@null"
                 android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:singleLine="true"
                 android:text="4K"
                 android:textColor="#FFFFFFFF"
-                android:textSize="22sp"
-                android:textStyle="bold"
-                />
+                android:textSize="14sp"
+                android:textStyle="bold" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
                 android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
                 android:text="@string/dw_image_4k_sub"
-                android:textColor="#E6FFFFFF"
-                android:textSize="10sp"
-                />
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
         </LinearLayout>
+
         <LinearLayout
             android:id="@+id/dw_img_up"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
             android:contentDescription="@string/dw_cd_img_up"
             android:gravity="center"
             android:orientation="vertical">
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/dw_round_idle"
+                android:contentDescription="@null"
                 android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:singleLine="true"
                 android:text="HD↑"
-                android:textColor="#FFE4E8F2"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                />
+                android:textColor="#FFFFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
                 android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
                 android:text="@string/dw_image_up_sub"
-                android:textColor="#FF98A2B3"
-                android:textSize="10sp"
-                />
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
         </LinearLayout>
+
         <LinearLayout
             android:id="@+id/dw_img_slot"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
             android:contentDescription="@string/dw_cd_img_slot"
             android:gravity="center"
             android:orientation="vertical">
             <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/dw_round_idle"
                 android:contentDescription="@null"
+                android:padding="13dp"
+                android:scaleType="fitCenter"
                 android:src="@drawable/ic_tune"
-                android:tint="#FFC4B5FD" />
+                android:tint="#FFFFFFFF" />
             <TextView
                 android:id="@+id/dw_img_slot_label"
                 android:layout_width="wrap_content"
@@ -132,38 +146,43 @@
                 android:layout_marginTop="3dp"
                 android:ellipsize="end"
                 android:fontFamily="sans-serif-medium"
-                android:maxWidth="64dp"
+                android:maxWidth="72dp"
                 android:singleLine="true"
                 android:text="@string/dw_image_slot"
-                android:textColor="#FF98A2B3"
+                android:textColor="#FFB4BCCB"
                 android:textSize="10sp" />
         </LinearLayout>
+
         <LinearLayout
             android:id="@+id/dw_img_off"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="0dp"
             android:layout_weight="1"
-            android:background="@drawable/dw_key"
             android:contentDescription="@string/dw_cd_img_off"
             android:gravity="center"
             android:orientation="vertical">
             <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/dw_round_remote"
                 android:contentDescription="@null"
+                android:padding="13dp"
+                android:scaleType="fitCenter"
                 android:src="@drawable/ic_tv"
-                android:tint="#FFC4B5FD" />
+                android:tint="#FFFFFFFF" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-medium"
-                android:text="@string/dw_image_off"
-                android:textColor="#FF98A2B3"
-                android:textSize="10sp"
                 android:layout_marginTop="3dp"
-                />
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxWidth="72dp"
+                android:singleLine="true"
+                android:text="@string/dw_image_off"
+                android:textColor="#FFB4BCCB"
+                android:textSize="10sp" />
         </LinearLayout>
+
     </LinearLayout>
+
 </LinearLayout>

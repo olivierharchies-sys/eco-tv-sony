@@ -96,7 +96,7 @@ class EcoWidgetProvider : AppWidgetProvider() {
                 views.setInt(
                     viewId,
                     "setBackgroundResource",
-                    if (mode == current) R.drawable.btn_active else R.drawable.btn_idle
+                    if (mode == current) R.drawable.dw_round_on else R.drawable.dw_round_idle
                 )
                 views.setOnClickPendingIntent(viewId, broadcast(context, ACTION_SET, mode))
             }

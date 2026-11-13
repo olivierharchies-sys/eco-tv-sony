@@ -36,6 +36,7 @@ class Remote2Activity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Ui.useBlueTheme(false)
         window.statusBarColor = Ui.BG
         window.navigationBarColor = Ui.BG
 
@@ -99,6 +100,12 @@ class Remote2Activity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (RoomSwitch.pick(this) == Prefs.DEVICE_EDENWOOD) {
+            Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
+            startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
+            finish()
+            return
+        }
         renderState()
         buildTiles()
         actions.refreshPower()
@@ -308,6 +315,21 @@ class Remote2Activity : Activity() {
         texts.addView(stateLabel)
 
         bar.addView(texts, LinearLayout.LayoutParams(0, MATCH, 1f))
+
+        // Passe à la télécommande Edenwood (bleue).
+        val edenwood = ImageView(this)
+        edenwood.setImageResource(R.drawable.ic_switch_remote)
+        edenwood.setColorFilter(Color.parseColor("#3D8BFF"))
+        edenwood.scaleType = ImageView.ScaleType.FIT_CENTER
+        edenwood.setPadding(dp(10), dp(10), dp(10), dp(10))
+        edenwood.contentDescription = "Télécommande Edenwood"
+        edenwood.background = Ui.rounded(this, Color.TRANSPARENT, 22)
+        edenwood.setOnClickListener {
+            Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
+            startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
+            finish()
+        }
+        bar.addView(edenwood, LinearLayout.LayoutParams(dp(44), dp(44)))
 
         val swap = ImageView(this)
         swap.setImageResource(R.drawable.ic_swap)

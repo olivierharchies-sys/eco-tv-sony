@@ -57,14 +57,37 @@ object AtvPrefs {
     }
 }
 
-/** Appareil Android TV piloté : le décodeur, ou la TV elle-même (clavier de ses applications). */
+/** Réglages de la TV Edenwood (Android TV) pilotée en Wi-Fi. */
+object EdenwoodPrefs {
+    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+
+    fun ip(ctx: Context): String = sp(ctx).getString("edenwood_ip", "") ?: ""
+
+    fun saveIp(ctx: Context, ip: String) {
+        sp(ctx).edit().putString("edenwood_ip", ip.trim()).apply()
+    }
+
+    /** Adresse MAC (AA:BB:CC:DD:EE:FF) pour le réveil réseau ; vide si inconnue. */
+    fun mac(ctx: Context): String = sp(ctx).getString("edenwood_mac", "") ?: ""
+
+    fun saveMac(ctx: Context, mac: String) {
+        sp(ctx).edit().putString("edenwood_mac", mac).apply()
+    }
+}
+
+/** Appareil Android TV piloté : le décodeur, la TV Sony (clavier de ses applications) ou la TV Edenwood. */
 enum class AtvDevice(val label: String, private val pairedKey: String) {
     DECODER("Décodeur", "atv_paired"),
-    TV("TV", "atv_tv_paired");
+    TV("TV", "atv_tv_paired"),
+    EDENWOOD("Edenwood", "atv_edenwood_paired");
 
     private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
 
-    fun ip(ctx: Context): String = if (this == TV) Prefs.ip(ctx) else AtvPrefs.ip(ctx)
+    fun ip(ctx: Context): String = when (this) {
+        TV -> Prefs.ip(ctx)
+        DECODER -> AtvPrefs.ip(ctx)
+        EDENWOOD -> EdenwoodPrefs.ip(ctx)
+    }
     fun paired(ctx: Context): Boolean = sp(ctx).getBoolean(pairedKey, false)
 
     fun savePaired(ctx: Context, paired: Boolean) {
@@ -217,7 +240,7 @@ object AtvRemote {
         var hasField = false
     }
 
-    private val links = mapOf(AtvDevice.DECODER to Link(), AtvDevice.TV to Link())
+    private val links = mapOf(AtvDevice.DECODER to Link(), AtvDevice.TV to Link(), AtvDevice.EDENWOOD to Link())
 
     private fun link(device: AtvDevice): Link = links.getValue(device)
 
@@ -233,6 +256,7 @@ object AtvRemote {
         "next" to 87, "prev" to 88,
         "red" to 183, "green" to 184, "yellow" to 185, "blue" to 186,
         "epg" to 172, "guide" to 172, "display" to 165, "search" to 84,
+        "input" to 178, "settings" to 176,
         "num0" to 7, "num1" to 8, "num2" to 9, "num3" to 10, "num4" to 11,
         "num5" to 12, "num6" to 13, "num7" to 14, "num8" to 15, "num9" to 16
     )
@@ -534,8 +558,11 @@ object AtvRemote {
         val ip = device.ip(ctx)
         if (ip.isEmpty() || !device.paired(ctx)) {
             error(
-                if (device == AtvDevice.TV) "Clavier de cette appli : associe d'abord la TV (Réglages > Associer la TV)"
-                else "Décodeur non associé (Réglages > Décodeur)"
+                when (device) {
+                    AtvDevice.TV -> "Clavier de cette appli : associe d'abord la TV (Réglages > Associer la TV)"
+                    AtvDevice.EDENWOOD -> "Edenwood non associée (Réglages > TV Edenwood)"
+                    AtvDevice.DECODER -> "Décodeur non associé (Réglages > Décodeur)"
+                }
             )
         }
 

@@ -24,6 +24,11 @@ class MainActivity : Activity() {
     private lateinit var decoderIpField: EditText
     private lateinit var decoderState: TextView
     private lateinit var tvKeysState: TextView
+    private lateinit var edenwoodIpField: EditText
+    private lateinit var edenwoodMacField: EditText
+    private lateinit var roomState: TextView
+    private lateinit var roomToggle: Button
+    private lateinit var edenwoodState: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,6 +77,8 @@ class MainActivity : Activity() {
 
         addExtraSettings()
         addDeviceSettings()
+        addEdenwoodCard()
+        addRoomCard()
         addPictureCard()
         addBackupCard()
 
@@ -101,6 +108,17 @@ class MainActivity : Activity() {
         }
         if (::decoderIpField.isInitialized) {
             AtvPrefs.saveIp(this, decoderIpField.text.toString())
+        }
+        if (::edenwoodIpField.isInitialized) {
+            EdenwoodPrefs.saveIp(this, edenwoodIpField.text.toString())
+            // Adresse MAC : enregistrée normalisée ; un texte invalide est ignoré (le champ est corrigé).
+            val mac = WakeOnLan.normalize(edenwoodMacField.text.toString())
+            if (mac != null) {
+                EdenwoodPrefs.saveMac(this, mac)
+                if (edenwoodMacField.text.toString() != mac) edenwoodMacField.setText(mac)
+            } else if (edenwoodMacField.text.isBlank()) {
+                EdenwoodPrefs.saveMac(this, "")
+            }
         }
     }
 
@@ -250,6 +268,228 @@ class MainActivity : Activity() {
         }
         if (::tvKeysState.isInitialized) {
             tvKeysState.text = if (AtvDevice.TV.paired(this)) "État : TV associée ✓" else "État : TV non associée"
+        }
+        if (::edenwoodState.isInitialized) {
+            edenwoodState.text =
+                if (AtvDevice.EDENWOOD.paired(this)) "État : Edenwood associée ✓" else "État : Edenwood non associée"
+        }
+    }
+
+    /** Carte « TV Edenwood » : adresse IP, association (code affiché sur la TV) et accès à sa télécommande bleue. */
+    private fun addEdenwoodCard() {
+        val scroll = (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)) as ScrollView
+        val column = scroll.getChildAt(0) as LinearLayout
+
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.setBackgroundResource(R.drawable.card)
+        val pad = Ui.dp(this, 16)
+        card.setPadding(pad, pad, pad, pad)
+
+        card.addView(cardText("TV Edenwood", 17f, Color.WHITE, true))
+        card.addView(cardText(
+            "Pilote la TV Edenwood (Android TV) en Wi-Fi, avec une télécommande bleue. Le bouton " +
+                "« télécommande » en haut de la télécommande Sony y mène, et inversement. TV allumée et sur " +
+                "le même Wi-Fi : saisis son adresse IP (ou touche Détecter), puis Associer et tape le code " +
+                "affiché sur la TV. Association une seule fois.",
+            12f, Ui.DIM, false
+        ))
+        edenwoodIpField = EditText(this)
+        edenwoodIpField.hint = "Adresse IP de la Edenwood (ex. 192.168.1.70)"
+        edenwoodIpField.setText(EdenwoodPrefs.ip(this))
+        edenwoodIpField.setSingleLine(true)
+        edenwoodIpField.inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
+        edenwoodIpField.setTextColor(Color.WHITE)
+        edenwoodIpField.setHintTextColor(Ui.DIM)
+        card.addView(edenwoodIpField, fieldLp())
+
+        edenwoodMacField = EditText(this)
+        edenwoodMacField.hint = "Adresse MAC pour l'allumer (ex. A1:B2:C3:D4:E5:F6)"
+        edenwoodMacField.setText(EdenwoodPrefs.mac(this))
+        edenwoodMacField.setSingleLine(true)
+        edenwoodMacField.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+            android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or
+            android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        edenwoodMacField.setTextColor(Color.WHITE)
+        edenwoodMacField.setHintTextColor(Ui.DIM)
+        card.addView(edenwoodMacField, fieldLp())
+        card.addView(cardText(
+            "L'adresse MAC sert au réveil réseau (Wake-on-LAN) quand la TV est en veille profonde : " +
+                "elle est dans les réglages réseau de la TV (état du réseau / informations) ou dans la liste " +
+                "des appareils de ta box. Il faut aussi activer sur la TV le démarrage par le réseau Wi-Fi, " +
+                "si ce réglage existe.",
+            12f, Ui.DIM, false
+        ))
+
+        edenwoodState = cardText("", 14f, Color.WHITE, false)
+        card.addView(edenwoodState)
+        showDecoderState()
+
+        cardButton(card, "Détecter la TV Edenwood") { detectEdenwood() }
+        cardButton(card, "Lire la MAC (TV allumée)") { learnEdenwoodMac() }
+        cardButton(card, "Tester le réveil réseau") { testEdenwoodWake() }
+        cardButton(card, "Associer la TV Edenwood") { pair(AtvDevice.EDENWOOD) }
+        cardButton(card, "Dissocier la TV Edenwood") {
+            AtvDevice.EDENWOOD.savePaired(this, false)
+            thread { AtvRemote.disconnect(AtvDevice.EDENWOOD) }
+            showDecoderState()
+        }
+        cardButton(card, "Ouvrir la télécommande Edenwood") {
+            save()
+            Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
+            startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
+        }
+
+        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        lp.topMargin = Ui.dp(this, 16)
+        column.addView(card, column.childCount - 1, lp)
+    }
+
+    /** Carte « Bascule automatique » : associe les points d'accès du mesh aux deux TV. */
+    private fun addRoomCard() {
+        val scroll = (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)) as ScrollView
+        val column = scroll.getChildAt(0) as LinearLayout
+
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.setBackgroundResource(R.drawable.card)
+        val pad = Ui.dp(this, 16)
+        card.setPadding(pad, pad, pad, pad)
+
+        card.addView(cardText("Bascule automatique Sony / Edenwood", 17f, Color.WHITE, true))
+        card.addView(cardText(
+            "Le téléphone ne peut pas mesurer le signal d'une TV : l'appli utilise celui des bornes de ton " +
+                "mesh. Une seule fois, place-toi près de chaque TV, attends que le téléphone soit connecté à " +
+                "la borne la plus proche (coupe puis remets le Wi-Fi si besoin), puis touche le bouton de " +
+                "cette TV. Ensuite la télécommande de la pièce s'ouvre toute seule quand tu changes de pièce ; " +
+                "ton choix fait à la main avec le bouton « télécommande » est respecté tant que tu ne changes " +
+                "pas de pièce. Android demande la permission de localisation (et la localisation activée) " +
+                "pour lire la borne ; l'appli n'utilise pas ta position. Chaque borne a souvent une adresse " +
+                "par bande Wi-Fi (2,4 et 5 GHz) : si la bascule rate, répète l'association sur l'autre bande.",
+            12f, Ui.DIM, false
+        ))
+        roomState = cardText("", 14f, Color.WHITE, false)
+        card.addView(roomState)
+
+        roomToggle = Button(this)
+        roomToggle.isAllCaps = false
+        roomToggle.setTextColor(Color.WHITE)
+        roomToggle.setBackgroundResource(R.drawable.btn_surface)
+        roomToggle.setOnClickListener {
+            val on = !RoomSwitch.enabled(this)
+            RoomSwitch.setEnabled(this, on)
+            if (on && !RoomSwitch.hasPermission(this)) {
+                requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), 9)
+                tell("Autorise la localisation (sert seulement à lire la borne Wi-Fi)")
+            } else {
+                tell(if (on) "Bascule automatique activée" else "Bascule automatique désactivée")
+            }
+            showRoomState()
+        }
+        val toggleLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 48))
+        toggleLp.topMargin = Ui.dp(this, 8)
+        card.addView(roomToggle, toggleLp)
+
+        cardButton(card, "Cette borne = TV Sony") { learnAccessPoint(Prefs.DEVICE_SONY, "la Sony") }
+        cardButton(card, "Cette borne = TV Edenwood") { learnAccessPoint(Prefs.DEVICE_EDENWOOD, "la Edenwood") }
+        cardButton(card, "Oublier les bornes associées") {
+            RoomSwitch.clearAccessPoints(this)
+            tell("Bornes oubliées")
+            showRoomState()
+        }
+        showRoomState()
+
+        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        lp.topMargin = Ui.dp(this, 16)
+        column.addView(card, column.childCount - 1, lp)
+    }
+
+    private fun learnAccessPoint(device: String, name: String) {
+        val current = RoomSwitch.current(this)
+        if (current == null) {
+            if (!RoomSwitch.hasPermission(this)) {
+                requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), 9)
+            }
+            tell("Borne illisible : autorise la localisation, active-la et vérifie que le Wi-Fi est connecté")
+            return
+        }
+        RoomSwitch.addAccessPoint(this, device, current.first)
+        tell("Borne ${current.first} associée à $name")
+        showRoomState()
+    }
+
+    private fun showRoomState() {
+        if (!::roomState.isInitialized) return
+        val current = RoomSwitch.current(this)
+        val now = when {
+            !RoomSwitch.hasPermission(this) -> "permission de localisation non accordée"
+            current == null -> "illisible (localisation désactivée ou Wi-Fi non connecté)"
+            else -> "${current.first} (${current.second} dBm)"
+        }
+        roomState.text = "Borne actuelle : $now\n" +
+            "Associées : Sony ${RoomSwitch.accessPoints(this, Prefs.DEVICE_SONY).size} · " +
+            "Edenwood ${RoomSwitch.accessPoints(this, Prefs.DEVICE_EDENWOOD).size}"
+        roomToggle.text = if (RoomSwitch.enabled(this)) "Bascule automatique : activée ✓" else "Bascule automatique : désactivée"
+    }
+
+    override fun onResume() {
+        super.onResume()
+        showRoomState() // la permission de localisation a pu être accordée entre-temps
+    }
+
+    private fun learnEdenwoodMac() {
+        save()
+        val ip = EdenwoodPrefs.ip(this)
+        if (ip.isEmpty()) {
+            tell("Saisis d'abord l'adresse IP de la Edenwood")
+            return
+        }
+        tell("Lecture de l'adresse MAC…")
+        thread {
+            val mac = WakeOnLan.learnMac(ip, 6466)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (mac == null) {
+                    tell("MAC non lisible par l'appli (TV éteinte, ou Android l'interdit) : saisis-la à la main")
+                } else {
+                    edenwoodMacField.setText(mac)
+                    save()
+                    tell("MAC trouvée : $mac")
+                }
+            }
+        }
+    }
+
+    private fun testEdenwoodWake() {
+        save()
+        val mac = EdenwoodPrefs.mac(this)
+        if (mac.isEmpty()) {
+            tell("Saisis d'abord l'adresse MAC de la Edenwood")
+            return
+        }
+        thread {
+            val sent = WakeOnLan.send(mac, EdenwoodPrefs.ip(this))
+            runOnUiThread {
+                tell(if (sent) "Réveil envoyé : éteins la Edenwood en veille profonde puis réessaie pour tester" else "Envoi impossible : vérifie le Wi-Fi")
+            }
+        }
+    }
+
+    private fun detectEdenwood() {
+        save()
+        tell("Recherche de la TV Edenwood…")
+        // On écarte la Sony et le décodeur : seule la Edenwood doit rester.
+        val others = setOf(AtvPrefs.ip(this)).filter { it.isNotEmpty() }.toSet()
+        Discovery.findDecoder(this, Prefs.ip(this), others) { ip ->
+            if (!isFinishing) {
+                if (ip == null) {
+                    tell("Aucune TV trouvée : saisis son adresse IP (Réglages de la TV > Réseau)")
+                } else {
+                    edenwoodIpField.setText(ip)
+                    save()
+                    tell("TV Edenwood trouvée : $ip")
+                }
+            }
         }
     }
 
@@ -597,7 +837,13 @@ class MainActivity : Activity() {
 
     private fun pair(device: AtvDevice) {
         save()
-        tell(if (device == AtvDevice.TV) "Connexion à la TV…" else "Connexion au décodeur…")
+        tell(
+            when (device) {
+                AtvDevice.TV -> "Connexion à la TV…"
+                AtvDevice.EDENWOOD -> "Connexion à la Edenwood…"
+                AtvDevice.DECODER -> "Connexion au décodeur…"
+            }
+        )
         thread {
             val started = AtvRemote.startPairing(this, device)
             runOnUiThread {
@@ -606,7 +852,7 @@ class MainActivity : Activity() {
                     pairing?.close()
                     tell("Échec : ${started.exceptionOrNull()?.message}")
                 } else {
-                    tell(if (device == AtvDevice.TV) "Saisis le code affiché sur la TV" else "Saisis le code affiché à l'écran")
+                    tell(if (device == AtvDevice.DECODER) "Saisis le code affiché à l'écran" else "Saisis le code affiché sur la TV")
                     askPairingCode(pairing, device)
                 }
             }
@@ -628,7 +874,7 @@ class MainActivity : Activity() {
         box.addView(edit, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle(if (device == AtvDevice.TV) "Code affiché sur la TV" else "Code affiché à l'écran")
+            .setTitle(if (device == AtvDevice.DECODER) "Code affiché à l'écran" else "Code affiché sur la TV")
             .setView(box)
             .setCancelable(false)
             .setPositiveButton("Valider") { _, _ ->
@@ -637,7 +883,13 @@ class MainActivity : Activity() {
                     val done = pairing.finish(this, code)
                     runOnUiThread {
                         if (done.isSuccess) {
-                            tell(if (device == AtvDevice.TV) "TV associée ✓" else "Décodeur associé ✓")
+                            tell(
+                                when (device) {
+                                    AtvDevice.TV -> "TV associée ✓"
+                                    AtvDevice.EDENWOOD -> "Edenwood associée ✓"
+                                    AtvDevice.DECODER -> "Décodeur associé ✓"
+                                }
+                            )
                         } else {
                             tell("Échec : ${done.exceptionOrNull()?.message}")
                         }

@@ -22,12 +22,34 @@ import kotlin.math.min
 
 /** Palette et fabriques de vues partagées (thème sombre). */
 object Ui {
-    val BG: Int = Color.parseColor("#0E1014")
-    val SURFACE: Int = Color.parseColor("#1B1F27")
-    val SURFACE_HI: Int = Color.parseColor("#2A2F3A")
-    val ACCENT: Int = Color.parseColor("#34C77B")
+    // Thème vert (Sony) par défaut ; la télécommande Edenwood passe en bleu via [useBlueTheme].
+    // Les vues lisent ces couleurs à leur construction : appeler [useBlueTheme] avant de les créer.
+    var BG: Int = Color.parseColor("#0E1014"); private set
+    var SURFACE: Int = Color.parseColor("#1B1F27"); private set
+    var SURFACE_HI: Int = Color.parseColor("#2A2F3A"); private set
+    var ACCENT: Int = Color.parseColor("#34C77B"); private set
+
+    /** Variante foncée de [ACCENT] (appui sur le bouton OK de la croix). */
+    var ACCENT_DARK: Int = Color.parseColor("#2AA866"); private set
     val TEXT: Int = Color.parseColor("#ECEFF4")
     val DIM: Int = Color.parseColor("#98A2B3")
+
+    /** Bascule la palette : bleue pour la télécommande Edenwood, verte pour tout le reste. */
+    fun useBlueTheme(blue: Boolean) {
+        if (blue) {
+            BG = Color.parseColor("#0B1224")
+            SURFACE = Color.parseColor("#16213B")
+            SURFACE_HI = Color.parseColor("#22305A")
+            ACCENT = Color.parseColor("#3D8BFF")
+            ACCENT_DARK = Color.parseColor("#2E6FD6")
+        } else {
+            BG = Color.parseColor("#0E1014")
+            SURFACE = Color.parseColor("#1B1F27")
+            SURFACE_HI = Color.parseColor("#2A2F3A")
+            ACCENT = Color.parseColor("#34C77B")
+            ACCENT_DARK = Color.parseColor("#2AA866")
+        }
+    }
 
     fun dp(ctx: Context, value: Int): Int =
         (value * ctx.resources.displayMetrics.density + 0.5f).toInt()

@@ -43,6 +43,7 @@ class RemoteActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Ui.useBlueTheme(false)
         window.statusBarColor = Ui.BG
         window.navigationBarColor = Ui.BG
 
@@ -50,6 +51,16 @@ class RemoteActivity : Activity() {
         actions.onStateChanged = { renderState() }
         shortcuts = AppShortcuts(this, actions)
         scenes = SceneUi(this, actions)
+
+        // Bascule automatique : si la pièce détectée (point d'accès du mesh) a changé, on suit la TV de cette pièce.
+        RoomSwitch.pick(this)?.let { Prefs.saveRemoteDevice(this, it) }
+
+        // Dernière télécommande utilisée : la Edenwood (bleue) reprend la main (widgets et icône arrivent ici).
+        if (Prefs.remoteDevice(this) == Prefs.DEVICE_EDENWOOD) {
+            startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
+            finish()
+            return
+        }
 
         // Télécommande « Zen » choisie : on lui passe la main (widgets et icône arrivent ici).
         if (Prefs.remoteStyle(this) == Prefs.STYLE_ZEN) {
@@ -177,6 +188,12 @@ class RemoteActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (RoomSwitch.pick(this) == Prefs.DEVICE_EDENWOOD) {
+            Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
+            startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
+            finish()
+            return
+        }
         renderState()
         actions.refreshPower()
         refreshInfo(0)
@@ -375,6 +392,19 @@ class RemoteActivity : Activity() {
             true
         }
         bar.addView(mute, LinearLayout.LayoutParams(dp(44), dp(44)))
+
+        // Passe à la télécommande Edenwood (le bouton est bleu : c'est la couleur de l'autre télécommande).
+        val edenwood = icon(R.drawable.ic_switch_remote, Color.parseColor("#3D8BFF"))
+        edenwood.setPadding(dp(10), dp(10), dp(10), dp(10))
+        edenwood.contentDescription = "Télécommande Edenwood"
+        edenwood.background = Ui.rounded(this, Color.TRANSPARENT, 22)
+        edenwood.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
+            startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
+            finish()
+        }
+        bar.addView(edenwood, LinearLayout.LayoutParams(dp(44), dp(44)))
 
         val swap = icon(R.drawable.ic_swap, Ui.DIM)
         swap.setPadding(dp(10), dp(10), dp(10), dp(10))

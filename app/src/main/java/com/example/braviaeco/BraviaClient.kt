@@ -109,6 +109,16 @@ object Prefs {
         sp(ctx).edit().putString("target", if (target == Target.DECODER) "decoder" else "tv").apply()
     }
 
+    // --- Télécommande affichée : Sony (verte) ou Edenwood (bleue)
+    const val DEVICE_SONY = "sony"
+    const val DEVICE_EDENWOOD = "edenwood"
+
+    fun remoteDevice(ctx: Context): String = sp(ctx).getString("remote_device", DEVICE_SONY) ?: DEVICE_SONY
+
+    fun saveRemoteDevice(ctx: Context, device: String) {
+        sp(ctx).edit().putString("remote_device", device).apply()
+    }
+
     // --- Télécommande affichée : classique ou « Zen » (gestes)
     const val STYLE_CLASSIC = "classic"
     const val STYLE_ZEN = "zen"

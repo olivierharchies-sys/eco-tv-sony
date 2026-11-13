@@ -30,6 +30,12 @@
             android:screenOrientation="portrait" />
 
         <activity
+            android:name=".EdenwoodRemoteActivity"
+            android:exported="false"
+            android:label="Télécommande Edenwood"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".Remote2Activity"
             android:exported="false"
             android:label="Télécommande Zen"

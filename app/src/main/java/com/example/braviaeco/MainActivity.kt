@@ -24,6 +24,8 @@ class MainActivity : Activity() {
     private lateinit var decoderIpField: EditText
     private lateinit var decoderState: TextView
     private lateinit var tvKeysState: TextView
+    private lateinit var edenwoodIpField: EditText
+    private lateinit var edenwoodState: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,6 +74,7 @@ class MainActivity : Activity() {
 
         addExtraSettings()
         addDeviceSettings()
+        addEdenwoodCard()
         addPictureCard()
         addBackupCard()
 
@@ -101,6 +104,9 @@ class MainActivity : Activity() {
         }
         if (::decoderIpField.isInitialized) {
             AtvPrefs.saveIp(this, decoderIpField.text.toString())
+        }
+        if (::edenwoodIpField.isInitialized) {
+            EdenwoodPrefs.saveIp(this, edenwoodIpField.text.toString())
         }
     }
 
@@ -250,6 +256,78 @@ class MainActivity : Activity() {
         }
         if (::tvKeysState.isInitialized) {
             tvKeysState.text = if (AtvDevice.TV.paired(this)) "État : TV associée ✓" else "État : TV non associée"
+        }
+        if (::edenwoodState.isInitialized) {
+            edenwoodState.text =
+                if (AtvDevice.EDENWOOD.paired(this)) "État : Edenwood associée ✓" else "État : Edenwood non associée"
+        }
+    }
+
+    /** Carte « TV Edenwood » : adresse IP, association (code affiché sur la TV) et accès à sa télécommande bleue. */
+    private fun addEdenwoodCard() {
+        val scroll = (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)) as ScrollView
+        val column = scroll.getChildAt(0) as LinearLayout
+
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.setBackgroundResource(R.drawable.card)
+        val pad = Ui.dp(this, 16)
+        card.setPadding(pad, pad, pad, pad)
+
+        card.addView(cardText("TV Edenwood", 17f, Color.WHITE, true))
+        card.addView(cardText(
+            "Pilote la TV Edenwood (Android TV) en Wi-Fi, avec une télécommande bleue. Le bouton " +
+                "« télécommande » en haut de la télécommande Sony y mène, et inversement. TV allumée et sur " +
+                "le même Wi-Fi : saisis son adresse IP (ou touche Détecter), puis Associer et tape le code " +
+                "affiché sur la TV. Association une seule fois.",
+            12f, Ui.DIM, false
+        ))
+        edenwoodIpField = EditText(this)
+        edenwoodIpField.hint = "Adresse IP de la Edenwood (ex. 192.168.1.70)"
+        edenwoodIpField.setText(EdenwoodPrefs.ip(this))
+        edenwoodIpField.setSingleLine(true)
+        edenwoodIpField.inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
+        edenwoodIpField.setTextColor(Color.WHITE)
+        edenwoodIpField.setHintTextColor(Ui.DIM)
+        card.addView(edenwoodIpField, fieldLp())
+
+        edenwoodState = cardText("", 14f, Color.WHITE, false)
+        card.addView(edenwoodState)
+        showDecoderState()
+
+        cardButton(card, "Détecter la TV Edenwood") { detectEdenwood() }
+        cardButton(card, "Associer la TV Edenwood") { pair(AtvDevice.EDENWOOD) }
+        cardButton(card, "Dissocier la TV Edenwood") {
+            AtvDevice.EDENWOOD.savePaired(this, false)
+            thread { AtvRemote.disconnect(AtvDevice.EDENWOOD) }
+            showDecoderState()
+        }
+        cardButton(card, "Ouvrir la télécommande Edenwood") {
+            save()
+            Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
+            startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
+        }
+
+        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        lp.topMargin = Ui.dp(this, 16)
+        column.addView(card, column.childCount - 1, lp)
+    }
+
+    private fun detectEdenwood() {
+        save()
+        tell("Recherche de la TV Edenwood…")
+        // On écarte la Sony et le décodeur : seule la Edenwood doit rester.
+        val others = setOf(AtvPrefs.ip(this)).filter { it.isNotEmpty() }.toSet()
+        Discovery.findDecoder(this, Prefs.ip(this), others) { ip ->
+            if (!isFinishing) {
+                if (ip == null) {
+                    tell("Aucune TV trouvée : saisis son adresse IP (Réglages de la TV > Réseau)")
+                } else {
+                    edenwoodIpField.setText(ip)
+                    save()
+                    tell("TV Edenwood trouvée : $ip")
+                }
+            }
         }
     }
 
@@ -597,7 +675,13 @@ class MainActivity : Activity() {
 
     private fun pair(device: AtvDevice) {
         save()
-        tell(if (device == AtvDevice.TV) "Connexion à la TV…" else "Connexion au décodeur…")
+        tell(
+            when (device) {
+                AtvDevice.TV -> "Connexion à la TV…"
+                AtvDevice.EDENWOOD -> "Connexion à la Edenwood…"
+                AtvDevice.DECODER -> "Connexion au décodeur…"
+            }
+        )
         thread {
             val started = AtvRemote.startPairing(this, device)
             runOnUiThread {
@@ -606,7 +690,7 @@ class MainActivity : Activity() {
                     pairing?.close()
                     tell("Échec : ${started.exceptionOrNull()?.message}")
                 } else {
-                    tell(if (device == AtvDevice.TV) "Saisis le code affiché sur la TV" else "Saisis le code affiché à l'écran")
+                    tell(if (device == AtvDevice.DECODER) "Saisis le code affiché à l'écran" else "Saisis le code affiché sur la TV")
                     askPairingCode(pairing, device)
                 }
             }
@@ -628,7 +712,7 @@ class MainActivity : Activity() {
         box.addView(edit, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle(if (device == AtvDevice.TV) "Code affiché sur la TV" else "Code affiché à l'écran")
+            .setTitle(if (device == AtvDevice.DECODER) "Code affiché à l'écran" else "Code affiché sur la TV")
             .setView(box)
             .setCancelable(false)
             .setPositiveButton("Valider") { _, _ ->
@@ -637,7 +721,13 @@ class MainActivity : Activity() {
                     val done = pairing.finish(this, code)
                     runOnUiThread {
                         if (done.isSuccess) {
-                            tell(if (device == AtvDevice.TV) "TV associée ✓" else "Décodeur associé ✓")
+                            tell(
+                                when (device) {
+                                    AtvDevice.TV -> "TV associée ✓"
+                                    AtvDevice.EDENWOOD -> "Edenwood associée ✓"
+                                    AtvDevice.DECODER -> "Décodeur associé ✓"
+                                }
+                            )
                         } else {
                             tell("Échec : ${done.exceptionOrNull()?.message}")
                         }

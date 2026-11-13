@@ -116,7 +116,7 @@ class DpadView(
             canvas.drawLine(cx + dx * inner, cy + dy * inner, cx + dx * outer, cy + dy * outer, sepPaint)
         }
 
-        okPaint.color = if (zone == CENTER) Color.parseColor("#2AA866") else Ui.ACCENT
+        okPaint.color = if (zone == CENTER) Ui.ACCENT_DARK else Ui.ACCENT
         canvas.drawCircle(cx, cy, inner, okPaint)
 
         val mid = (outer + inner) / 2f

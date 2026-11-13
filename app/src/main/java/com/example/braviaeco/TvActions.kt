@@ -31,6 +31,12 @@ class TvActions(private val act: Activity) {
     /** Appelé sur le thread principal quand l'état affiché (marche/arrêt, source) a changé. */
     var onStateChanged: (() -> Unit)? = null
 
+    /**
+     * Si défini, remplace l'envoi de [key] (télécommande Edenwood : les touches partent vers cette TV
+     * au lieu de la Sony). Reçoit les noms de touches et true pour une répétition d'appui prolongé.
+     */
+    var customKey: ((names: Array<out String>, repeat: Boolean) -> Unit)? = null
+
     private val ui = Handler(Looper.getMainLooper())
     private val io = Executors.newSingleThreadExecutor()
 
@@ -103,6 +109,7 @@ class TvActions(private val act: Activity) {
      * repeat : répétition d'appui prolongé, ignorée si la précédente n'est pas finie.
      */
     fun key(vararg names: String, repeat: Boolean = false) {
+        customKey?.let { it(names, repeat); return }
         val toDecoder = Prefs.target(act) == Target.DECODER && names.first() !in TV_ONLY
         runIo(repeat) {
             if (toDecoder) Decoder.sendKey(act, *names) else BraviaClient.sendIrcc(act, *names)
@@ -317,18 +324,22 @@ class TvActions(private val act: Activity) {
 
     // ------------------------------------------------------------------ clavier
 
-    fun showKeyboard() {
-        // Le clavier suit l'appareil visé par la télécommande (TV ou décodeur).
-        val device = if (Prefs.target(act) == Target.DECODER) AtvDevice.DECODER else AtvDevice.TV
+    fun showKeyboard(forced: AtvDevice? = null) {
+        // Le clavier suit l'appareil visé par la télécommande (TV ou décodeur), sauf appareil imposé.
+        val device = forced ?: if (Prefs.target(act) == Target.DECODER) AtvDevice.DECODER else AtvDevice.TV
         val edit = EditText(act)
-        edit.hint = if (device == AtvDevice.DECODER) "Texte à envoyer au décodeur" else "Texte à envoyer à la TV"
+        edit.hint = when (device) {
+            AtvDevice.DECODER -> "Texte à envoyer au décodeur"
+            AtvDevice.EDENWOOD -> "Texte à envoyer à la Edenwood"
+            AtvDevice.TV -> "Texte à envoyer à la TV"
+        }
         edit.setSingleLine(true)
         edit.imeOptions = EditorInfo.IME_ACTION_SEND
         edit.setTextColor(Ui.TEXT)
         edit.setHintTextColor(Ui.DIM)
 
         // Lus et modifiés uniquement sur le fil réseau (appels faits dans l'ordre).
-        var byKeys = device == AtvDevice.DECODER
+        var byKeys = device != AtvDevice.TV
         var typed = ""
         var sent = ""
 
@@ -385,7 +396,13 @@ class TvActions(private val act: Activity) {
         )
 
         val dialog = AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle(if (device == AtvDevice.DECODER) "Clavier du décodeur" else "Clavier de la TV")
+            .setTitle(
+                when (device) {
+                    AtvDevice.DECODER -> "Clavier du décodeur"
+                    AtvDevice.EDENWOOD -> "Clavier de la Edenwood"
+                    AtvDevice.TV -> "Clavier de la TV"
+                }
+            )
             .setView(box)
             .setPositiveButton("Entrée") { _, _ ->
                 val text = edit.text.toString()
@@ -400,7 +417,7 @@ class TvActions(private val act: Activity) {
 
     // ------------------------------------------------------------------ pavé numérique
 
-    fun showNumpad() {
+    fun showNumpad(favorites: Boolean = true) {
         val box = LinearLayout(act)
         box.orientation = LinearLayout.VERTICAL
         val pad = Ui.dp(act, 16)
@@ -436,12 +453,12 @@ class TvActions(private val act: Activity) {
             box.addView(row)
         }
 
-        AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
+        val dialog = AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle("Pavé numérique")
             .setView(box)
-            .setNeutralButton("Chaînes favorites") { _, _ -> Favorites.show(act, this) }
-            .setNegativeButton("Fermer", null)
-            .show()
+        // Chaînes favorites : contenus de la Sony, sans objet pour la Edenwood.
+        if (favorites) dialog.setNeutralButton("Chaînes favorites") { _, _ -> Favorites.show(act, this) }
+        dialog.setNegativeButton("Fermer", null).show()
     }
 
     private companion object {

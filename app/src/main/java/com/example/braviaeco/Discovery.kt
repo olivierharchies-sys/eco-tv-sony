@@ -41,7 +41,7 @@ object Discovery {
      * Adresse IP du décodeur Android TV (annonce mDNS de sa télécommande réseau).
      * [onResult] est appelé une fois sur le thread principal, avec null si rien n'est trouvé.
      */
-    fun findDecoder(ctx: Context, excludeIp: String, onResult: (String?) -> Unit) {
+    fun findDecoder(ctx: Context, excludeIp: String, alsoExclude: Set<String> = emptySet(), onResult: (String?) -> Unit) {
         val ui = Handler(Looper.getMainLooper())
         val nsd = ctx.applicationContext.getSystemService(Context.NSD_SERVICE) as? NsdManager
         if (nsd == null) {
@@ -80,7 +80,7 @@ object Discovery {
 
                         override fun onServiceResolved(info: NsdServiceInfo?) {
                             val ip = info?.host?.hostAddress
-                            if (ip != null && ip != excludeIp && !ip.contains(':')) finish(ip)
+                            if (ip != null && ip != excludeIp && ip !in alsoExclude && !ip.contains(':')) finish(ip)
                         }
                     })
                 }

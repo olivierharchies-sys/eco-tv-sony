@@ -52,6 +52,9 @@ class RemoteActivity : Activity() {
         shortcuts = AppShortcuts(this, actions)
         scenes = SceneUi(this, actions)
 
+        // Bascule automatique : si la pièce détectée (point d'accès du mesh) a changé, on suit la TV de cette pièce.
+        RoomSwitch.pick(this)?.let { Prefs.saveRemoteDevice(this, it) }
+
         // Dernière télécommande utilisée : la Edenwood (bleue) reprend la main (widgets et icône arrivent ici).
         if (Prefs.remoteDevice(this) == Prefs.DEVICE_EDENWOOD) {
             startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
@@ -185,6 +188,12 @@ class RemoteActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (RoomSwitch.pick(this) == Prefs.DEVICE_EDENWOOD) {
+            Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
+            startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
+            finish()
+            return
+        }
         renderState()
         actions.refreshPower()
         refreshInfo(0)

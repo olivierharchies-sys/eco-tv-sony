@@ -100,6 +100,12 @@ class Remote2Activity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (RoomSwitch.pick(this) == Prefs.DEVICE_EDENWOOD) {
+            Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
+            startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
+            finish()
+            return
+        }
         renderState()
         buildTiles()
         actions.refreshPower()

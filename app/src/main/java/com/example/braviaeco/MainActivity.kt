@@ -26,6 +26,8 @@ class MainActivity : Activity() {
     private lateinit var tvKeysState: TextView
     private lateinit var edenwoodIpField: EditText
     private lateinit var edenwoodMacField: EditText
+    private lateinit var roomState: TextView
+    private lateinit var roomToggle: Button
     private lateinit var edenwoodState: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,6 +78,7 @@ class MainActivity : Activity() {
         addExtraSettings()
         addDeviceSettings()
         addEdenwoodCard()
+        addRoomCard()
         addPictureCard()
         addBackupCard()
 
@@ -340,6 +343,98 @@ class MainActivity : Activity() {
         val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         lp.topMargin = Ui.dp(this, 16)
         column.addView(card, column.childCount - 1, lp)
+    }
+
+    /** Carte « Bascule automatique » : associe les points d'accès du mesh aux deux TV. */
+    private fun addRoomCard() {
+        val scroll = (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)) as ScrollView
+        val column = scroll.getChildAt(0) as LinearLayout
+
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.setBackgroundResource(R.drawable.card)
+        val pad = Ui.dp(this, 16)
+        card.setPadding(pad, pad, pad, pad)
+
+        card.addView(cardText("Bascule automatique Sony / Edenwood", 17f, Color.WHITE, true))
+        card.addView(cardText(
+            "Le téléphone ne peut pas mesurer le signal d'une TV : l'appli utilise celui des bornes de ton " +
+                "mesh. Une seule fois, place-toi près de chaque TV, attends que le téléphone soit connecté à " +
+                "la borne la plus proche (coupe puis remets le Wi-Fi si besoin), puis touche le bouton de " +
+                "cette TV. Ensuite la télécommande de la pièce s'ouvre toute seule quand tu changes de pièce ; " +
+                "ton choix fait à la main avec le bouton « télécommande » est respecté tant que tu ne changes " +
+                "pas de pièce. Android demande la permission de localisation (et la localisation activée) " +
+                "pour lire la borne ; l'appli n'utilise pas ta position. Chaque borne a souvent une adresse " +
+                "par bande Wi-Fi (2,4 et 5 GHz) : si la bascule rate, répète l'association sur l'autre bande.",
+            12f, Ui.DIM, false
+        ))
+        roomState = cardText("", 14f, Color.WHITE, false)
+        card.addView(roomState)
+
+        roomToggle = Button(this)
+        roomToggle.isAllCaps = false
+        roomToggle.setTextColor(Color.WHITE)
+        roomToggle.setBackgroundResource(R.drawable.btn_surface)
+        roomToggle.setOnClickListener {
+            val on = !RoomSwitch.enabled(this)
+            RoomSwitch.setEnabled(this, on)
+            if (on && !RoomSwitch.hasPermission(this)) {
+                requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), 9)
+                tell("Autorise la localisation (sert seulement à lire la borne Wi-Fi)")
+            } else {
+                tell(if (on) "Bascule automatique activée" else "Bascule automatique désactivée")
+            }
+            showRoomState()
+        }
+        val toggleLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 48))
+        toggleLp.topMargin = Ui.dp(this, 8)
+        card.addView(roomToggle, toggleLp)
+
+        cardButton(card, "Cette borne = TV Sony") { learnAccessPoint(Prefs.DEVICE_SONY, "la Sony") }
+        cardButton(card, "Cette borne = TV Edenwood") { learnAccessPoint(Prefs.DEVICE_EDENWOOD, "la Edenwood") }
+        cardButton(card, "Oublier les bornes associées") {
+            RoomSwitch.clearAccessPoints(this)
+            tell("Bornes oubliées")
+            showRoomState()
+        }
+        showRoomState()
+
+        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        lp.topMargin = Ui.dp(this, 16)
+        column.addView(card, column.childCount - 1, lp)
+    }
+
+    private fun learnAccessPoint(device: String, name: String) {
+        val current = RoomSwitch.current(this)
+        if (current == null) {
+            if (!RoomSwitch.hasPermission(this)) {
+                requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), 9)
+            }
+            tell("Borne illisible : autorise la localisation, active-la et vérifie que le Wi-Fi est connecté")
+            return
+        }
+        RoomSwitch.addAccessPoint(this, device, current.first)
+        tell("Borne ${current.first} associée à $name")
+        showRoomState()
+    }
+
+    private fun showRoomState() {
+        if (!::roomState.isInitialized) return
+        val current = RoomSwitch.current(this)
+        val now = when {
+            !RoomSwitch.hasPermission(this) -> "permission de localisation non accordée"
+            current == null -> "illisible (localisation désactivée ou Wi-Fi non connecté)"
+            else -> "${current.first} (${current.second} dBm)"
+        }
+        roomState.text = "Borne actuelle : $now\n" +
+            "Associées : Sony ${RoomSwitch.accessPoints(this, Prefs.DEVICE_SONY).size} · " +
+            "Edenwood ${RoomSwitch.accessPoints(this, Prefs.DEVICE_EDENWOOD).size}"
+        roomToggle.text = if (RoomSwitch.enabled(this)) "Bascule automatique : activée ✓" else "Bascule automatique : désactivée"
+    }
+
+    override fun onResume() {
+        super.onResume()
+        showRoomState() // la permission de localisation a pu être accordée entre-temps
     }
 
     private fun learnEdenwoodMac() {

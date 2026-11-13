@@ -106,6 +106,12 @@ class EdenwoodRemoteActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (RoomSwitch.pick(this) == Prefs.DEVICE_SONY) {
+            Prefs.saveRemoteDevice(this, Prefs.DEVICE_SONY)
+            startActivity(Intent(this, RemoteActivity::class.java))
+            finish()
+            return
+        }
         Ui.useBlueTheme(true)
         renderState()
         // Ouvre la connexion d'avance : la première touche ne paie pas la poignée de main TLS.

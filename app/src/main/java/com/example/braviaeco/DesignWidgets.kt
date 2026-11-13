@@ -271,3 +271,58 @@ class NumpadDesignWidget : DesignWidget() {
         )
     }
 }
+
+/** 4x1 « Énergie » : modes Off / Bas / Haut (le mode actif est mis en avant) et accès à la télécommande. */
+class EcoDesignWidget : DesignWidget() {
+    override val layoutId = R.layout.dw_eco4
+    override val codeBase = 9700
+
+    private val modes = mapOf(
+        R.id.dw_eco_off to EcoMode.OFF,
+        R.id.dw_eco_low to EcoMode.LOW,
+        R.id.dw_eco_high to EcoMode.HIGH
+    )
+
+    private val backgrounds = mapOf(
+        EcoMode.OFF to R.id.dw_eco_off_bg,
+        EcoMode.LOW to R.id.dw_eco_low_bg,
+        EcoMode.HIGH to R.id.dw_eco_high_bg
+    )
+
+    private val labels = mapOf(
+        EcoMode.OFF to R.id.dw_eco_off_label,
+        EcoMode.LOW to R.id.dw_eco_low_label,
+        EcoMode.HIGH to R.id.dw_eco_high_label
+    )
+
+    override fun buttons() = modes.mapValues { it.value.api }
+
+    override fun run(context: Context, cmd: String): String? {
+        val mode = EcoMode.fromApi(cmd) ?: return null
+        return BraviaClient.setMode(context, mode).fold(
+            onSuccess = { "TV : éco ${mode.label}" },
+            onFailure = { it.message ?: "Échec" }
+        )
+    }
+
+    override fun refreshAfter(context: Context) = EcoWidgetProvider.refreshAll(context)
+
+    override fun decorate(context: Context, views: RemoteViews) {
+        val current = Prefs.lastMode(context)
+        backgrounds.forEach { (mode, id) ->
+            views.setInt(id, "setBackgroundResource", if (mode == current) R.drawable.dw_round_on else R.drawable.dw_round_idle)
+        }
+        labels.forEach { (mode, id) ->
+            views.setTextColor(id, if (mode == current) 0xFF5EEAD4.toInt() else 0xFFB4BCCB.toInt())
+        }
+        // Télécommande : ouvre l'appli (Sony ou Edenwood, selon la dernière utilisée).
+        views.setOnClickPendingIntent(
+            R.id.dw_eco_remote,
+            WidgetIntents.activity(context, RemoteActivity::class.java, codeBase + 50)
+        )
+    }
+
+    companion object {
+        fun refreshAll(context: Context) = EcoDesignWidget().refresh(context)
+    }
+}

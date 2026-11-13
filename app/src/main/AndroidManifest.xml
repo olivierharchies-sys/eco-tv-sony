@@ -184,6 +184,18 @@
         </receiver>
 
         <receiver
+            android:name=".EcoDesignWidget"
+            android:exported="true"
+            android:label="Éco TV · Énergie (design)">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dw_eco4_info" />
+        </receiver>
+
+        <receiver
             android:name=".SleepDesignWidget"
             android:exported="true"
             android:label="Éco TV · Veille (design)">

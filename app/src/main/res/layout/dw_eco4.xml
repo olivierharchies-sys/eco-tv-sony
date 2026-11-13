@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget 4x1 : modes d'énergie (Off, Bas, Haut) et accès à la télécommande, 4 boutons ronds. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/dw_bg"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="10dp"
+    android:paddingTop="6dp"
+    android:paddingEnd="10dp"
+    android:paddingBottom="6dp">
+
+    <LinearLayout
+        android:id="@+id/dw_eco_off"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:contentDescription="@string/dw_cd_eco_off"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:id="@+id/dw_eco_off_bg"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:background="@drawable/dw_round_idle">
+
+            <ImageView
+                android:id="@+id/dw_eco_off_ic"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_brightness"
+                android:tint="#FFFFFFFF" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/dw_eco_off_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.06"
+            android:singleLine="true"
+            android:text="@string/dw_eco_off"
+            android:textColor="#FFB4BCCB"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/dw_eco_low"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:contentDescription="@string/dw_cd_eco_low"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:id="@+id/dw_eco_low_bg"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:background="@drawable/dw_round_on">
+
+            <ImageView
+                android:id="@+id/dw_eco_low_ic"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_gravity="center"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_eco"
+                android:tint="#FFFFFFFF" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/dw_eco_low_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.06"
+            android:singleLine="true"
+            android:text="@string/dw_eco_low"
+            android:textColor="#FFB4BCCB"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/dw_eco_high"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:contentDescription="@string/dw_cd_eco_high"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:id="@+id/dw_eco_high_bg"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:background="@drawable/dw_round_idle">
+
+            <ImageView
+                android:id="@+id/dw_eco_high_ic"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_eco"
+                android:tint="#FFFFFFFF" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/dw_eco_high_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.06"
+            android:singleLine="true"
+            android:text="@string/dw_eco_high"
+            android:textColor="#FFB4BCCB"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/dw_eco_remote"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:contentDescription="@string/dw_cd_eco_remote"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:id="@+id/dw_eco_remote_bg"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:background="@drawable/dw_round_remote">
+
+            <ImageView
+                android:id="@+id/dw_eco_remote_ic"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_switch_remote"
+                android:tint="#FFFFFFFF" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/dw_eco_remote_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.06"
+            android:singleLine="true"
+            android:text="@string/dw_eco_remote"
+            android:textColor="#FFB4BCCB"
+            android:textSize="10sp" />
+    </LinearLayout>
+</LinearLayout>

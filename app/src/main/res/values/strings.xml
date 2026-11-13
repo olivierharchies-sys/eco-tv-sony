@@ -94,5 +94,14 @@
     <string name="dw_sleep_description">Minuteur d\'extinction de la TV en un geste</string>
     <string name="dw_pad_description">Croix directionnelle compacte avec OK, retour, accueil, source et options</string>
     <string name="dw_media_description">Lecture, pause, avance et retour rapides</string>
+    <string name="dw_eco_off">Éco off</string>
+    <string name="dw_eco_low">Éco bas</string>
+    <string name="dw_eco_high">Éco haut</string>
+    <string name="dw_eco_remote">Télécommande</string>
+    <string name="dw_cd_eco_off">Économie d\'énergie désactivée</string>
+    <string name="dw_cd_eco_low">Économie d\'énergie basse</string>
+    <string name="dw_cd_eco_high">Économie d\'énergie haute</string>
+    <string name="dw_cd_eco_remote">Ouvrir la télécommande</string>
+    <string name="dw_eco4_description">Modes d\'énergie de la TV et accès à la télécommande, en 4 boutons ronds</string>
     <string name="dw_numpad_description">Pavé numérique pour changer de chaîne</string>
 </resources>

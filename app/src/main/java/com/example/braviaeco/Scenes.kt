@@ -139,12 +139,15 @@ object SleepTimer {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    fun set(ctx: Context, minutes: Int) {
+    /** device : [Prefs.DEVICE_SONY] (par défaut) ou [Prefs.DEVICE_EDENWOOD]. */
+    fun set(ctx: Context, minutes: Int, device: String = Prefs.DEVICE_SONY) {
         val at = System.currentTimeMillis() + minutes * 60_000L
         val alarms = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, intent(ctx))
-        sp(ctx).edit().putLong("sleep_at", at).apply()
+        sp(ctx).edit().putLong("sleep_at", at).putString("sleep_device", device).apply()
     }
+
+    fun device(ctx: Context): String = sp(ctx).getString("sleep_device", Prefs.DEVICE_SONY) ?: Prefs.DEVICE_SONY
 
     fun cancel(ctx: Context) {
         val alarms = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -170,8 +173,14 @@ class SleepReceiver : BroadcastReceiver() {
         val pending = goAsync()
         thread {
             try {
+                val device = SleepTimer.device(context)
                 SleepTimer.clear(context)
-                BraviaClient.setPower(context, false)
+                if (device == Prefs.DEVICE_EDENWOOD) {
+                    // Touche « veille » : sans effet si la Edenwood est déjà éteinte (contrairement à Power).
+                    AtvRemote.sendKey(context, AtvRemote.keyCode("sleep") ?: 223, AtvDevice.EDENWOOD)
+                } else {
+                    BraviaClient.setPower(context, false)
+                }
                 PowerWidgetProvider.refreshAll(context)
                 SleepDesignWidget.refreshAll(context)
             } finally {

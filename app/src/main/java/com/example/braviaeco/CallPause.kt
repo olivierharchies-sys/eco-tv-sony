@@ -44,7 +44,7 @@ object CallPause {
  */
 class CallPauseService : Service() {
 
-    private enum class Route { TV, DEVICE }
+    private enum class Route { TV, DEVICE, EDENWOOD }
 
     private val handler = Handler(Looper.getMainLooper())
     private val io = Executors.newSingleThreadExecutor()
@@ -107,6 +107,12 @@ class CallPauseService : Service() {
         val app = applicationContext
         runCatching {
             io.execute {
+                // Télécommande Edenwood en cours : pause sur la Edenwood si elle est allumée.
+                if (Prefs.remoteDevice(app) == Prefs.DEVICE_EDENWOOD) {
+                    if (AtvRemote.powerState(AtvDevice.EDENWOOD) == false) return@execute
+                    if (send(app, Route.EDENWOOD, "Pause").isSuccess) paused = Route.EDENWOOD
+                    return@execute
+                }
                 val status = BraviaClient.rawCall(app, "system", "getPowerStatus", JSONArray())
                     .getOrNull()?.optJSONObject(0)?.optString("status")
                 if (status != "active") return@execute
@@ -128,8 +134,12 @@ class CallPauseService : Service() {
         }
     }
 
-    private fun send(ctx: Context, route: Route, key: String): Result<Unit> =
-        if (route == Route.DEVICE) Decoder.sendKey(ctx, key) else BraviaClient.sendIrcc(ctx, key)
+    private fun send(ctx: Context, route: Route, key: String): Result<Unit> = when (route) {
+        Route.DEVICE -> Decoder.sendKey(ctx, key)
+        Route.EDENWOOD -> AtvRemote.keyCode(key)?.let { AtvRemote.sendKey(ctx, it, AtvDevice.EDENWOOD) }
+            ?: Result.failure(IllegalArgumentException(key))
+        Route.TV -> BraviaClient.sendIrcc(ctx, key)
+    }
 
     private fun notification(): Notification {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

@@ -238,11 +238,40 @@ object AtvRemote {
 
         @Volatile
         var hasField = false
+
+        /** État annoncé par l'appareil : allumé (message 40), volume (message 50). */
+        @Volatile
+        var power: Boolean? = null
+
+        @Volatile
+        var volume: Int? = null
+
+        @Volatile
+        var volumeMax: Int? = null
+
+        @Volatile
+        var muted: Boolean? = null
+    }
+
+    /** Appelé (thread réseau) quand un appareil annonce son état marche/veille ou son volume. */
+    @Volatile
+    var onStatus: ((AtvDevice) -> Unit)? = null
+
+    /** Allumé (true), en veille (false) ou inconnu (null), selon la dernière annonce de l'appareil. */
+    fun powerState(device: AtvDevice): Boolean? = link(device).power
+
+    /** Volume annoncé : (actuel, maximum, muet), ou null. */
+    fun volumeState(device: AtvDevice): Triple<Int, Int, Boolean>? {
+        val l = link(device)
+        val v = l.volume ?: return null
+        return Triple(v, l.volumeMax ?: 100, l.muted ?: false)
     }
 
     private val links = mapOf(AtvDevice.DECODER to Link(), AtvDevice.TV to Link(), AtvDevice.EDENWOOD to Link())
 
     private fun link(device: AtvDevice): Link = links.getValue(device)
+
+    private fun deviceOf(l: Link): AtvDevice? = links.entries.firstOrNull { it.value === l }?.key
 
     @Volatile
     private var cachedContext: SSLContext? = null
@@ -256,7 +285,7 @@ object AtvRemote {
         "next" to 87, "prev" to 88,
         "red" to 183, "green" to 184, "yellow" to 185, "blue" to 186,
         "epg" to 172, "guide" to 172, "display" to 165, "search" to 84,
-        "input" to 178, "settings" to 176,
+        "input" to 178, "settings" to 176, "info" to 165, "sleep" to 223,
         "num0" to 7, "num1" to 8, "num2" to 9, "num3" to 10, "num4" to 11,
         "num5" to 12, "num6" to 13, "num7" to 14, "num8" to 15, "num9" to 16
     )
@@ -619,7 +648,18 @@ object AtvRemote {
                     if (!l.hasIme) l.imeCounter = ((edit[1] as? Long) ?: 0L).toInt()
                     if (!l.hasField) l.fieldCounter = ((edit[2] as? Long) ?: 0L).toInt()
                 } else if (msg.containsKey(40)) {
+                    // Marche / veille : champ 1 (absent = false).
+                    val start = Pb.parse(msg[40] as? ByteArray ?: ByteArray(0))
+                    l.power = ((start[1] as? Long) ?: 0L) != 0L
                     ready.countDown()
+                    deviceOf(l)?.let { d -> runCatching { onStatus?.invoke(d) } }
+                } else if (msg.containsKey(50)) {
+                    // Volume : max (6), actuel (7), muet (8).
+                    val vol = Pb.parse(msg[50] as? ByteArray ?: ByteArray(0))
+                    l.volumeMax = ((vol[6] as? Long) ?: 0L).toInt().takeIf { it > 0 }
+                    l.volume = ((vol[7] as? Long) ?: 0L).toInt()
+                    l.muted = ((vol[8] as? Long) ?: 0L) != 0L
+                    deviceOf(l)?.let { d -> runCatching { onStatus?.invoke(d) } }
                 }
             }
         } catch (e: Exception) {
@@ -667,10 +707,10 @@ object AtvRemote {
         send(ctx, Pb().msg(10, Pb().int(1, keyCode).int(2, direction)), device)
 
     /** Ouvre une application du décodeur : nom de paquet (com.netflix.ninja) ou lien (https://…). */
-    fun launch(ctx: Context, link: String): Result<Unit> {
+    fun launch(ctx: Context, link: String, device: AtvDevice = AtvDevice.DECODER): Result<Unit> {
         val text = link.trim()
         val target = if (Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://.*").matches(text)) text else "market://launch?id=$text"
-        return send(ctx, Pb().msg(90, Pb().str(1, target)), AtvDevice.DECODER)
+        return send(ctx, Pb().msg(90, Pb().str(1, target)), device)
     }
 
     // ---------------------------------------------------------------- saisie par le clavier de l'appareil

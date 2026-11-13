@@ -25,6 +25,7 @@ class MainActivity : Activity() {
     private lateinit var decoderState: TextView
     private lateinit var tvKeysState: TextView
     private lateinit var edenwoodIpField: EditText
+    private lateinit var edenwoodMacField: EditText
     private lateinit var edenwoodState: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -107,6 +108,14 @@ class MainActivity : Activity() {
         }
         if (::edenwoodIpField.isInitialized) {
             EdenwoodPrefs.saveIp(this, edenwoodIpField.text.toString())
+            // Adresse MAC : enregistrée normalisée ; un texte invalide est ignoré (le champ est corrigé).
+            val mac = WakeOnLan.normalize(edenwoodMacField.text.toString())
+            if (mac != null) {
+                EdenwoodPrefs.saveMac(this, mac)
+                if (edenwoodMacField.text.toString() != mac) edenwoodMacField.setText(mac)
+            } else if (edenwoodMacField.text.isBlank()) {
+                EdenwoodPrefs.saveMac(this, "")
+            }
         }
     }
 
@@ -291,11 +300,31 @@ class MainActivity : Activity() {
         edenwoodIpField.setHintTextColor(Ui.DIM)
         card.addView(edenwoodIpField, fieldLp())
 
+        edenwoodMacField = EditText(this)
+        edenwoodMacField.hint = "Adresse MAC pour l'allumer (ex. A1:B2:C3:D4:E5:F6)"
+        edenwoodMacField.setText(EdenwoodPrefs.mac(this))
+        edenwoodMacField.setSingleLine(true)
+        edenwoodMacField.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+            android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or
+            android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        edenwoodMacField.setTextColor(Color.WHITE)
+        edenwoodMacField.setHintTextColor(Ui.DIM)
+        card.addView(edenwoodMacField, fieldLp())
+        card.addView(cardText(
+            "L'adresse MAC sert au réveil réseau (Wake-on-LAN) quand la TV est en veille profonde : " +
+                "elle est dans les réglages réseau de la TV (état du réseau / informations) ou dans la liste " +
+                "des appareils de ta box. Il faut aussi activer sur la TV le démarrage par le réseau Wi-Fi, " +
+                "si ce réglage existe.",
+            12f, Ui.DIM, false
+        ))
+
         edenwoodState = cardText("", 14f, Color.WHITE, false)
         card.addView(edenwoodState)
         showDecoderState()
 
         cardButton(card, "Détecter la TV Edenwood") { detectEdenwood() }
+        cardButton(card, "Lire la MAC (TV allumée)") { learnEdenwoodMac() }
+        cardButton(card, "Tester le réveil réseau") { testEdenwoodWake() }
         cardButton(card, "Associer la TV Edenwood") { pair(AtvDevice.EDENWOOD) }
         cardButton(card, "Dissocier la TV Edenwood") {
             AtvDevice.EDENWOOD.savePaired(this, false)
@@ -311,6 +340,44 @@ class MainActivity : Activity() {
         val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         lp.topMargin = Ui.dp(this, 16)
         column.addView(card, column.childCount - 1, lp)
+    }
+
+    private fun learnEdenwoodMac() {
+        save()
+        val ip = EdenwoodPrefs.ip(this)
+        if (ip.isEmpty()) {
+            tell("Saisis d'abord l'adresse IP de la Edenwood")
+            return
+        }
+        tell("Lecture de l'adresse MAC…")
+        thread {
+            val mac = WakeOnLan.learnMac(ip, 6466)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (mac == null) {
+                    tell("MAC non lisible par l'appli (TV éteinte, ou Android l'interdit) : saisis-la à la main")
+                } else {
+                    edenwoodMacField.setText(mac)
+                    save()
+                    tell("MAC trouvée : $mac")
+                }
+            }
+        }
+    }
+
+    private fun testEdenwoodWake() {
+        save()
+        val mac = EdenwoodPrefs.mac(this)
+        if (mac.isEmpty()) {
+            tell("Saisis d'abord l'adresse MAC de la Edenwood")
+            return
+        }
+        thread {
+            val sent = WakeOnLan.send(mac, EdenwoodPrefs.ip(this))
+            runOnUiThread {
+                tell(if (sent) "Réveil envoyé : éteins la Edenwood en veille profonde puis réessaie pour tester" else "Envoi impossible : vérifie le Wi-Fi")
+            }
+        }
     }
 
     private fun detectEdenwood() {

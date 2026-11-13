@@ -66,6 +66,13 @@ object EdenwoodPrefs {
     fun saveIp(ctx: Context, ip: String) {
         sp(ctx).edit().putString("edenwood_ip", ip.trim()).apply()
     }
+
+    /** Adresse MAC (AA:BB:CC:DD:EE:FF) pour le réveil réseau ; vide si inconnue. */
+    fun mac(ctx: Context): String = sp(ctx).getString("edenwood_mac", "") ?: ""
+
+    fun saveMac(ctx: Context, mac: String) {
+        sp(ctx).edit().putString("edenwood_mac", mac).apply()
+    }
 }
 
 /** Appareil Android TV piloté : le décodeur, la TV Sony (clavier de ses applications) ou la TV Edenwood. */

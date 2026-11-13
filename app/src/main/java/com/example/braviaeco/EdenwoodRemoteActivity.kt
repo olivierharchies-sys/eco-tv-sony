@@ -141,6 +141,28 @@ class EdenwoodRemoteActivity : Activity() {
         }
     }
 
+    /**
+     * Marche/arrêt. TV joignable : touche Power (bascule veille / marche). Injoignable (veille profonde) :
+     * paquet de réveil réseau si l'adresse MAC est connue, sinon on explique où la saisir.
+     */
+    private fun power() {
+        actions.runIo {
+            val ip = device.ip(this)
+            if (WakeOnLan.reachable(ip, REMOTE_PORT)) {
+                return@runIo AtvRemote.sendKey(this, AtvRemote.keyCode("power") ?: 26, device)
+            }
+            val mac = EdenwoodPrefs.mac(this)
+            if (WakeOnLan.normalize(mac) == null) {
+                return@runIo Result.failure<Unit>(
+                    IllegalStateException("Edenwood injoignable. Pour l'allumer : saisis son adresse MAC dans Réglages > TV Edenwood")
+                )
+            }
+            WakeOnLan.send(mac, ip)
+            Ui.toast(this, "Réveil de la Edenwood envoyé…")
+            Result.success(Unit)
+        }
+    }
+
     /** Appui maintenu sur une flèche : vrai appui long Android TV plutôt que des appuis courts répétés. */
     private fun hold(name: String, start: Boolean): Boolean {
         val code = AtvRemote.keyCode(name) ?: return false
@@ -193,7 +215,7 @@ class EdenwoodRemoteActivity : Activity() {
         power.contentDescription = "Marche / Arrêt"
         power.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            actions.key("Power")
+            power()
         }
         bar.addView(power, LinearLayout.LayoutParams(dp(56), dp(56)))
 
@@ -373,5 +395,8 @@ class EdenwoodRemoteActivity : Activity() {
 
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
+
+        /** Port de la télécommande Android TV (voir [AtvRemote]). */
+        const val REMOTE_PORT = 6466
     }
 }

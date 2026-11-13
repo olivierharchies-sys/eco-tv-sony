@@ -2,7 +2,14 @@ package com.example.braviaeco
 
 import android.Manifest
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.content.pm.PackageManager
 import android.net.wifi.WifiManager
 
@@ -106,7 +113,8 @@ object RoomSwitch {
     @Suppress("DEPRECATION")
     private fun guess(ctx: Context): String? = when (effectiveMethod(ctx)) {
         METHOD_WIFI -> guessWifi(ctx)
-        METHOD_BT -> decide(BtRoom.level(ctx, Prefs.DEVICE_SONY), BtRoom.level(ctx, Prefs.DEVICE_EDENWOOD))
+        // Bluetooth : mesures du dernier scan, prises depuis le démarrage / réveil.
+        METHOD_BT -> decide(BtRoom.level(ctx, Prefs.DEVICE_SONY, btSince()), BtRoom.level(ctx, Prefs.DEVICE_EDENWOOD, btSince()))
         else -> null
     }
 
@@ -143,38 +151,131 @@ object RoomSwitch {
     }
 
     /**
-     * TV vers laquelle basculer, ou null s'il n'y a rien à changer. On ne répond que quand la pièce
-     * détectée change : un choix fait à la main par le bouton « télécommande » reste donc respecté
-     * tant qu'on ne change pas de pièce.
+     * Détection « armée » (démarrage de l'appli ou réveil du téléphone) : la TV la plus proche
+     * est choisie d'office. Ensuite, pendant l'utilisation, on surveille en continu et on bascule
+     * quand la pièce détectée change (confirmée par 2 mesures de suite) ; un choix fait à la main
+     * reste respecté tant qu'on ne change pas de pièce.
      */
+    @Volatile
+    private var armed = true
+
+    @Volatile
+    private var armedAt = 0L
+
+    private var screenWatch = false
+    private var lastRoom: String? = null
+    private var candidate: String? = null
+    private var candidateCount = 0
+
+    private const val CONFIRM = 2
+    private const val WIFI_EVERY_MS = 10_000L
+    private const val BT_PAUSE_MS = 5_000L
+    private const val IDLE_EVERY_MS = 15_000L
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var watching: Activity? = null
+    private var onSwitchCb: ((String) -> Unit)? = null
+
+    private fun arm() {
+        armed = true
+        armedAt = SystemClock.elapsedRealtime()
+        candidate = null
+        BtRoom.forceNext()
+    }
+
+    /** Mesures Bluetooth à prendre en compte : dernier scan terminé, et pas d'avant le réveil. */
+    private fun btSince(): Long = maxOf(armedAt, BtRoom.lastScanStart)
+
+    /** Écoute l'extinction de l'écran (une seule fois par processus) : le réveil suivant réarme. */
+    private fun watchScreen(ctx: Context) {
+        if (screenWatch) return
+        screenWatch = true
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) {
+                if (i.action == Intent.ACTION_SCREEN_OFF) arm()
+            }
+        }
+        runCatching {
+            val app = ctx.applicationContext
+            val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+            if (Build.VERSION.SDK_INT >= 33) app.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+            else app.registerReceiver(receiver, filter)
+        }
+    }
+
+    /** TV vers laquelle basculer maintenant, ou null. */
     fun pick(ctx: Context): String? {
+        watchScreen(ctx)
         if (!enabled(ctx)) return null
-        val room = guess(ctx) ?: return null
-        if (room == sp(ctx).getString("room_last", null)) return null
-        sp(ctx).edit().putString("room_last", room).apply()
+        val method = effectiveMethod(ctx)
+        val room = guess(ctx)
+        if (armed) {
+            // Bluetooth sans mesure récente : on attend la fin du scan.
+            if (room != null || method != METHOD_BT) armed = false
+            if (room != null) { lastRoom = room; candidate = null }
+            return room
+        }
+        if (room == null) return null
+        if (room == lastRoom) { candidate = null; return null }
+        if (room == candidate) candidateCount++ else { candidate = room; candidateCount = 1 }
+        if (candidateCount < CONFIRM) return null
+        lastRoom = room
+        candidate = null
         return room
     }
 
-    /**
-     * Démarrage de l'appli (icône) : la pièce est redétectée même si elle n'a pas changé,
-     * pour ouvrir la télécommande de la TV à proximité.
-     */
+    /** Démarrage de l'appli (icône) : redétection de la TV à proximité. */
     fun startup(ctx: Context) {
+        watchScreen(ctx)
         if (!enabled(ctx)) return
-        sp(ctx).edit().remove("room_last").apply()
-        BtRoom.forceNext()
+        arm()
         if (effectiveMethod(ctx) == METHOD_BT) Ui.toast(ctx, "Recherche de la TV à proximité…")
     }
 
     /**
-     * En mode Bluetooth, lance un scan (~10 s) puis rappelle onSwitch si la pièce a changé.
-     * Le premier [pick] d'onResume utilise la mesure précédente ; celle-ci corrige ensuite.
+     * Surveillance continue tant que la télécommande est à l'écran (arrêtée par [stop] dans onPause) :
+     * Bluetooth = scan, pause de 5 s, scan… ; Wi-Fi = lecture toutes les 10 s.
      */
     fun follow(activity: Activity, onSwitch: (String) -> Unit) {
-        if (!enabled(activity) || effectiveMethod(activity) != METHOD_BT) return
-        BtRoom.refresh(activity) {
-            if (activity.isFinishing || activity.isDestroyed) return@refresh
-            pick(activity)?.let(onSwitch)
+        watchScreen(activity)
+        handler.removeCallbacksAndMessages(null)
+        watching = activity
+        onSwitchCb = onSwitch
+        handler.post { tick(activity) }
+    }
+
+    fun stop(activity: Activity) {
+        if (watching !== activity) return
+        watching = null
+        onSwitchCb = null
+        handler.removeCallbacksAndMessages(null)
+    }
+
+    private fun alive(activity: Activity) =
+        watching === activity && !activity.isFinishing && !activity.isDestroyed
+
+    private fun deliver(activity: Activity) {
+        if (!alive(activity)) return
+        pick(activity)?.let { room -> onSwitchCb?.invoke(room) }
+    }
+
+    private fun tick(activity: Activity) {
+        if (!alive(activity)) return
+        val method = if (enabled(activity)) effectiveMethod(activity) else null
+        when (method) {
+            METHOD_BT -> {
+                BtRoom.forceNext()
+                val started = BtRoom.refresh(activity) {
+                    deliver(activity)
+                    if (alive(activity)) handler.postDelayed({ tick(activity) }, BT_PAUSE_MS)
+                }
+                if (!started) handler.postDelayed({ tick(activity) }, BT_PAUSE_MS)
+            }
+            METHOD_WIFI -> {
+                deliver(activity)
+                handler.postDelayed({ tick(activity) }, WIFI_EVERY_MS)
+            }
+            else -> handler.postDelayed({ tick(activity) }, IDLE_EVERY_MS)
         }
     }
 }

@@ -70,25 +70,33 @@ object BtRoom {
     }
 
     /** Dernier signal (dBm) mesuré pour une TV, ou null si non vue récemment. */
-    fun level(ctx: Context, device: String): Int? {
+    fun level(ctx: Context, device: String, since: Long = 0L): Int? {
         val now = SystemClock.elapsedRealtime()
         val keys = listOfNotNull(
             address(ctx, device).takeIf { it.isNotEmpty() },
             name(ctx, device).takeIf { it.isNotEmpty() }?.let { "name:$it" }
         )
-        return keys.mapNotNull { k -> cache[k]?.takeIf { now - it.second <= MAX_AGE_MS }?.first }.maxOrNull()
+        return keys.mapNotNull { k -> cache[k]?.takeIf { now - it.second <= MAX_AGE_MS && it.second >= since }?.first }.maxOrNull()
     }
 
     /** Scan automatique (respecte un délai minimal entre deux scans). onDone : thread principal. */
-    fun refresh(ctx: Context, onDone: () -> Unit) {
-        if (scanning || (lastScan != 0L && SystemClock.elapsedRealtime() - lastScan < MIN_GAP_MS)) return
+    /** Lance un scan si possible ; false si rien n'est lancé (onDone ne sera pas appelé). */
+    fun refresh(ctx: Context, onDone: () -> Unit): Boolean {
+        if (scanning || (lastScan != 0L && SystemClock.elapsedRealtime() - lastScan < MIN_GAP_MS)) return false
+        if (!isOn(ctx) || !hasPermission(ctx)) return false
         // Arrêt anticipé dès que les deux TV associées ont été vues.
         val wanted = listOf(Prefs.DEVICE_SONY, Prefs.DEVICE_EDENWOOD).filter { associated(ctx, it) }
             .map { address(ctx, it) to name(ctx, it) }
         scan(ctx, until = { seen ->
             wanted.all { (addr, name) -> seen.any { it.address == addr || (name.isNotEmpty() && it.name == name) } }
         }) { onDone() }
+        return true
     }
+
+    /** Début du dernier scan terminé : seules ses mesures reflètent la position actuelle. */
+    @Volatile
+    var lastScanStart = 0L
+        private set
 
     /** Démarrage de l'appli : le prochain [refresh] scanne même si un scan récent existe. */
     fun forceNext() {
@@ -108,6 +116,7 @@ object BtRoom {
             return
         }
         scanning = true
+        val started = SystemClock.elapsedRealtime()
         val found = HashMap<String, Seen>()
         var finish: () -> Unit = {}
 
@@ -166,6 +175,7 @@ object BtRoom {
                 }
             }
             lastScan = now
+            lastScanStart = started
             scanning = false
             onDone(found.values.sortedByDescending { it.rssi })
         }

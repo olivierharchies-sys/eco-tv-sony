@@ -174,6 +174,7 @@ class EdenwoodRemoteActivity : Activity() {
     }
 
     override fun onPause() {
+        RoomSwitch.stop(this)
         AtvRemote.onStatus = null
         // Les autres écrans (réglages…) gardent leur palette verte.
         Ui.useBlueTheme(false)

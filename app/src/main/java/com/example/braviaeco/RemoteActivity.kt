@@ -186,6 +186,11 @@ class RemoteActivity : Activity() {
         renderState()
     }
 
+    override fun onPause() {
+        RoomSwitch.stop(this)
+        super.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
         if (RoomSwitch.pick(this) == Prefs.DEVICE_EDENWOOD) {

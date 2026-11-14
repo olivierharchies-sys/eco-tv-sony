@@ -2,308 +2,124 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Lire le dossier Téléchargements pour y trouver le dernier zip (Android 11+) -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <!-- Garder l'appli active et afficher la progression pendant un envoi -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Nettoyage GitHub hebdomadaire conservé après redémarrage -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Ouvrir l'appli Claude directement (Android 11+) -->
+    <queries>
+        <package android:name="com.anthropic.claude" />
+    </queries>
 
     <application
-        android:allowBackup="true"
+        android:name=".App"
+        android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
-        android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
 
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
             android:exported="true"
-            android:screenOrientation="portrait">
+            android:windowSoftInputMode="adjustResize">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- « Partager » un zip vers l'appli -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+            </intent-filter>
+
+            <!-- « Partager » un fichier seul (ex. fichier donné par Claude) : placé au bon endroit -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+
+            <!-- « Ouvrir avec » depuis le gestionnaire de fichiers -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+            </intent-filter>
+
+            <!-- « Partager » plusieurs fichiers vers l'appli -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
         </activity>
 
         <activity
-            android:name=".RemoteActivity"
+            android:name=".FilesActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
             android:exported="false"
-            android:label="Télécommande"
-            android:screenOrientation="portrait" />
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
-            android:name=".EdenwoodRemoteActivity"
+            android:name=".GitHubToolsActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
             android:exported="false"
-            android:label="Télécommande Edenwood"
-            android:screenOrientation="portrait" />
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
-            android:name=".Remote2Activity"
+            android:name=".AccessActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
             android:exported="false"
-            android:label="Télécommande Zen"
-            android:screenOrientation="portrait" />
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
-            android:name=".PictureSettingsActivity"
+            android:name=".ClaudeChatActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
             android:exported="false"
-            android:label="Réglages image"
-            android:screenOrientation="portrait" />
+            android:windowSoftInputMode="adjustResize" />
 
-        <activity
-            android:name=".MoreActivity"
-            android:exported="false"
-            android:label="Plus de commandes"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".SourceActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:label="Source"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-
-        <!-- Widget 1 : modes d'économie d'énergie -->
-        <receiver
-            android:name=".EcoWidgetProvider"
-            android:exported="true"
-            android:label="Éco TV · Modes">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/eco_widget_info" />
-        </receiver>
-
-        <!-- Widget : modes éco + lecture / pause -->
-        <receiver
-            android:name=".EcoPlayWidgetProvider"
-            android:exported="true"
-            android:label="Éco TV · Éco et lecture">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/eco_play_widget_info" />
-        </receiver>
-
-        <!-- Widget 2 : marche / arrêt -->
-        <receiver
-            android:name=".PowerWidgetProvider"
-            android:exported="true"
-            android:label="Éco TV · Marche/Arrêt">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/power_widget_info" />
-        </receiver>
-
-        <!-- Widget 3 : source -->
-        <receiver
-            android:name=".SourceWidgetProvider"
-            android:exported="true"
-            android:label="Éco TV · Source">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/source_widget_info" />
-        </receiver>
-
-        <!-- Widget 4 : mini-télécommande volume / chaînes -->
-        <receiver
-            android:name=".MiniRemoteWidgetProvider"
-            android:exported="true"
-            android:label="Éco TV · Volume et chaînes">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/mini_widget_info" />
-        </receiver>
-
-        <!-- Widget 5 : télécommande complète -->
-        <receiver
-            android:name=".RemoteWidgetProvider"
-            android:exported="true"
-            android:label="Éco TV · Télécommande">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/remote_widget_info" />
-        </receiver>
-
-        <!-- Widget 6 : scènes -->
-        <receiver
-            android:name=".SceneWidgetProvider"
-            android:exported="true"
-            android:label="Éco TV · Scènes">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/scene_widget_info" />
-        </receiver>
-
-        <!-- Widget 7 : chaînes favorites du décodeur -->
-        <receiver
-            android:name=".ChannelWidgetProvider"
-            android:exported="true"
-            android:label="Éco TV · Chaînes favorites">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/channel_widget_info" />
-        </receiver>
-
-        <!-- Widgets design -->
-        <receiver
-            android:name=".ImageDesignWidget"
-            android:exported="true"
-            android:label="Éco TV · Image (design)">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/dw_image_info" />
-        </receiver>
-
-        <receiver
-            android:name=".EcoDesignWidget"
-            android:exported="true"
-            android:label="Éco TV · Énergie (design)">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/dw_eco4_info" />
-        </receiver>
-
-        <receiver
-            android:name=".SleepDesignWidget"
-            android:exported="true"
-            android:label="Éco TV · Veille (design)">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/dw_sleep_info" />
-        </receiver>
-
-        <receiver
-            android:name=".PadDesignWidget"
-            android:exported="true"
-            android:label="Éco TV · Croix (design)">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/dw_pad_info" />
-        </receiver>
-
-        <receiver
-            android:name=".MediaDesignWidget"
-            android:exported="true"
-            android:label="Éco TV · Lecture (design)">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/dw_media_info" />
-        </receiver>
-
-        <receiver
-            android:name=".NumpadDesignWidget"
-            android:exported="true"
-            android:label="Éco TV · Chiffres (design)">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/dw_numpad_info" />
-        </receiver>
-
-        <!-- Minuterie de veille -->
-        <receiver
-            android:name=".SleepReceiver"
-            android:exported="false" />
-
-        <!-- Pause automatique de la TV pendant un appel -->
         <service
-            android:name=".CallPauseService"
+            android:name=".TaskService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Met la lecture de la TV en pause pendant un appel et la reprend ensuite" />
-        </service>
+            android:foregroundServiceType="dataSync" />
 
-        <!-- Décodeur gardé éveillé tant que la TV est allumée -->
-        <service
-            android:name=".KeepAwakeService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Envoie une touche sans effet au décodeur tant que la TV est allumée, pour éviter sa mise en veille" />
-        </service>
         <receiver
-            android:name=".KeepAwakeReceiver"
-            android:exported="false" />
-        <receiver
-            android:name=".KeepAwakeBootReceiver"
+            android:name=".TasksWidgetProvider"
             android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tasks_widget_info" />
         </receiver>
 
-        <!-- Tuiles des Réglages rapides -->
-        <service
-            android:name=".PowerTileService"
-            android:exported="true"
-            android:icon="@drawable/ic_power"
-            android:label="@string/tile_power"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
+        <provider
+            android:name=".ShareProvider"
+            android:authorities="com.example.gitzippush.share"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <service
-            android:name=".MuteTileService"
-            android:exported="true"
-            android:icon="@drawable/ic_mute"
-            android:label="@string/tile_mute"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
+            android:name=".CleanJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <receiver
+            android:name=".InstallReceiver"
+            android:exported="false" />
 
     </application>
 </manifest>

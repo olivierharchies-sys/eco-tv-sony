@@ -4,19 +4,18 @@ plugins {
 }
 
 android {
-    namespace = "com.example.braviaeco"
+    namespace = "com.example.gitzippush"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.braviaeco"
+        applicationId = "com.example.gitzippush"
         minSdk = 24
         targetSdk = 34
-        versionCode = 44
-        versionName = "2.35"
+        versionCode = 45
+        versionName = "1.11"
     }
 
-    // Clé de signature fixe (fichier app/debug.keystore) : chaque compilation produit un APK
-    // signé de la même façon, donc Android l'installe par-dessus la version précédente.
+    // Clé de signature fixe (app/debug.keystore) : les versions suivantes s'installent par-dessus.
     signingConfigs {
         create("shared") {
             storeFile = file("debug.keystore")
@@ -44,4 +43,8 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+}
+
+dependencies {
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

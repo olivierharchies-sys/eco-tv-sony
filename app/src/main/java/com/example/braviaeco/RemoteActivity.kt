@@ -41,9 +41,12 @@ class RemoteActivity : Activity() {
     private val infoHandler = Handler(Looper.getMainLooper())
     private val infoTask = Runnable { loadInfo() }
 
+    /** Design appliqué à la construction des vues ; s'il change (réglages), l'écran est reconstruit. */
+    private var design = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Ui.useBlueTheme(false)
+        design = Ui.useRemoteDesign(this, false)
         window.statusBarColor = Ui.BG
         window.navigationBarColor = Ui.BG
 
@@ -188,11 +191,18 @@ class RemoteActivity : Activity() {
 
     override fun onPause() {
         RoomSwitch.stop(this)
+        // Les autres écrans (réglages…) gardent la palette classique.
+        Ui.useBlueTheme(false)
         super.onPause()
     }
 
     override fun onResume() {
         super.onResume()
+        if (RemoteDesign.current(this) != design) {
+            recreate()
+            return
+        }
+        Ui.useRemoteDesign(this, false)
         if (RoomSwitch.pick(this) == Prefs.DEVICE_EDENWOOD) {
             Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
             startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
@@ -405,8 +415,8 @@ class RemoteActivity : Activity() {
         }
         bar.addView(mute, LinearLayout.LayoutParams(dp(44), dp(44)))
 
-        // Passe à la télécommande Edenwood (le bouton est bleu : c'est la couleur de l'autre télécommande).
-        val edenwood = icon(R.drawable.ic_switch_remote, Color.parseColor("#3D8BFF"))
+        // Passe à la télécommande Edenwood (bouton à la couleur de l'autre télécommande).
+        val edenwood = icon(R.drawable.ic_switch_remote, RemoteDesign.accent(this, true))
         edenwood.setPadding(dp(10), dp(10), dp(10), dp(10))
         edenwood.contentDescription = "Télécommande Edenwood"
         edenwood.background = Ui.rounded(this, Color.TRANSPARENT, 22)

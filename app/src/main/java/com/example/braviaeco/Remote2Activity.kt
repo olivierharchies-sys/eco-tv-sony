@@ -34,9 +34,12 @@ class Remote2Activity : Activity() {
 
     private class Tile(val label: String, val color: Int, val action: () -> Unit)
 
+    /** Design appliqué à la construction des vues ; s'il change (réglages), l'écran est reconstruit. */
+    private var design = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Ui.useBlueTheme(false)
+        design = Ui.useRemoteDesign(this, false)
         window.statusBarColor = Ui.BG
         window.navigationBarColor = Ui.BG
 
@@ -100,11 +103,18 @@ class Remote2Activity : Activity() {
 
     override fun onPause() {
         RoomSwitch.stop(this)
+        // Les autres écrans (réglages…) gardent la palette classique.
+        Ui.useBlueTheme(false)
         super.onPause()
     }
 
     override fun onResume() {
         super.onResume()
+        if (RemoteDesign.current(this) != design) {
+            recreate()
+            return
+        }
+        Ui.useRemoteDesign(this, false)
         if (RoomSwitch.pick(this) == Prefs.DEVICE_EDENWOOD) {
             Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
             startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
@@ -331,7 +341,7 @@ class Remote2Activity : Activity() {
         // Passe à la télécommande Edenwood (bleue).
         val edenwood = ImageView(this)
         edenwood.setImageResource(R.drawable.ic_switch_remote)
-        edenwood.setColorFilter(Color.parseColor("#3D8BFF"))
+        edenwood.setColorFilter(RemoteDesign.accent(this, true))
         edenwood.scaleType = ImageView.ScaleType.FIT_CENTER
         edenwood.setPadding(dp(10), dp(10), dp(10), dp(10))
         edenwood.contentDescription = "Télécommande Edenwood"

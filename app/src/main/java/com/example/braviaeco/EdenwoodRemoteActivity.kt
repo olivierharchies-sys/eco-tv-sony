@@ -34,9 +34,12 @@ class EdenwoodRemoteActivity : Activity() {
     private var volLabel: TextView? = null
     private var muteBtn: ImageView? = null
 
+    /** Design appliqué à la construction des vues ; s'il change (réglages), l'écran est reconstruit. */
+    private var design = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Ui.useBlueTheme(true)
+        design = Ui.useRemoteDesign(this, true)
         window.statusBarColor = Ui.BG
         window.navigationBarColor = Ui.BG
 
@@ -143,6 +146,11 @@ class EdenwoodRemoteActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (RemoteDesign.current(this) != design) {
+            recreate()
+            return
+        }
+        Ui.useRemoteDesign(this, true)
         if (RoomSwitch.pick(this) == Prefs.DEVICE_SONY) {
             Prefs.saveRemoteDevice(this, Prefs.DEVICE_SONY)
             startActivity(Intent(this, RemoteActivity::class.java))
@@ -156,7 +164,6 @@ class EdenwoodRemoteActivity : Activity() {
                 finish()
             }
         }
-        Ui.useBlueTheme(true)
         // État marche/veille et volume annoncés par la TV : l'écran suit.
         AtvRemote.onStatus = { d -> if (d == device) runOnUiThread { if (!isFinishing) renderState() } }
         renderState()
@@ -499,7 +506,7 @@ class EdenwoodRemoteActivity : Activity() {
         bar.addView(mute, LinearLayout.LayoutParams(dp(44), dp(44)))
 
         // Passe à la télécommande Sony (le bouton est vert : c'est la couleur de l'autre télécommande).
-        val switch = topIcon(R.drawable.ic_switch_remote, Color.parseColor("#34C77B"), "Télécommande Sony")
+        val switch = topIcon(R.drawable.ic_switch_remote, RemoteDesign.accent(this, false), "Télécommande Sony")
         switch.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             Prefs.saveRemoteDevice(this, Prefs.DEVICE_SONY)

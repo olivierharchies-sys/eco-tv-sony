@@ -31,6 +31,11 @@ object Ui {
 
     /** Variante foncée de [ACCENT] (appui sur le bouton OK de la croix). */
     var ACCENT_DARK: Int = Color.parseColor("#2AA866"); private set
+    /** Surface appuyée (croix directionnelle). */
+    var PRESSED: Int = Color.parseColor("#3A4150"); private set
+
+    /** Facteur d'arrondi des boutons (1 = classique). */
+    var ROUND: Float = 1f; private set
     val TEXT: Int = Color.parseColor("#ECEFF4")
     val DIM: Int = Color.parseColor("#98A2B3")
 
@@ -49,6 +54,23 @@ object Ui {
             ACCENT = Color.parseColor("#34C77B")
             ACCENT_DARK = Color.parseColor("#2AA866")
         }
+        PRESSED = Color.parseColor("#3A4150")
+        ROUND = 1f
+    }
+
+    /** Applique le design choisi ; la couleur d'accent dépend de la TV (blue = Edenwood). Renvoie le design. */
+    fun useRemoteDesign(ctx: Context, blue: Boolean): Int {
+        val d = RemoteDesign.current(ctx)
+        useBlueTheme(blue)
+        val p = RemoteDesign.palette(d, blue) ?: return d
+        BG = Color.parseColor(p[0])
+        SURFACE = Color.parseColor(p[1])
+        SURFACE_HI = Color.parseColor(p[2])
+        PRESSED = Color.parseColor(p[3])
+        ACCENT = Color.parseColor(p[4])
+        ACCENT_DARK = Color.parseColor(p[5])
+        ROUND = RemoteDesign.round(d)
+        return d
     }
 
     fun dp(ctx: Context, value: Int): Int =
@@ -58,10 +80,10 @@ object Ui {
     fun rounded(ctx: Context, color: Int, radiusDp: Int): Drawable {
         val shape = GradientDrawable()
         shape.setColor(color)
-        shape.cornerRadius = dp(ctx, radiusDp).toFloat()
+        shape.cornerRadius = dp(ctx, radiusDp) * ROUND
         val mask = GradientDrawable()
         mask.setColor(Color.WHITE)
-        mask.cornerRadius = dp(ctx, radiusDp).toFloat()
+        mask.cornerRadius = dp(ctx, radiusDp) * ROUND
         return RippleDrawable(ColorStateList.valueOf(Color.parseColor("#33FFFFFF")), shape, mask)
     }
 
@@ -112,6 +134,43 @@ object Ui {
             Toast.makeText(app, message, Toast.LENGTH_SHORT).show()
         }
     }
+}
+
+/** Designs de télécommande au choix (couleurs et arrondis ; mêmes boutons). */
+object RemoteDesign {
+    val NAMES = arrayOf("Classique", "Minuit (noir OLED)", "Ambre", "Néon violet", "Graphite carré")
+
+    // fond, surface, surface haute, appui, accent Sony, accent foncé Sony, accent Edenwood, accent foncé Edenwood
+    private val PALETTES = arrayOf(
+        null,
+        arrayOf("#000000", "#121212", "#1F1F1F", "#2C2C2C", "#00D1FF", "#00A6CC", "#FF4FA3", "#D93A86"),
+        arrayOf("#15100B", "#241B13", "#33271C", "#45352A", "#FF9F1C", "#D9820F", "#2EC4B6", "#239E93"),
+        arrayOf("#0F0B1A", "#1C1530", "#2A2047", "#3A2C60", "#B26BFF", "#8F4DE0", "#7CFF6B", "#5FD94F"),
+        arrayOf("#121314", "#232527", "#313437", "#43474B", "#E5484D", "#C23A3F", "#3D8BFF", "#2E6FD6")
+    )
+    private val ROUNDS = floatArrayOf(1f, 1f, 1f, 1.35f, 0.3f)
+
+    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+
+    fun current(ctx: Context): Int = sp(ctx).getInt("remote_design", 0).coerceIn(0, NAMES.size - 1)
+
+    fun save(ctx: Context, design: Int) {
+        sp(ctx).edit().putInt("remote_design", design).apply()
+    }
+
+    /** Palette du design pour la TV donnée (edenwood = true), ou null pour Classique. */
+    fun palette(design: Int, edenwood: Boolean): Array<String>? {
+        val p = PALETTES.getOrNull(design) ?: return null
+        return if (edenwood) arrayOf(p[0], p[1], p[2], p[3], p[6], p[7]) else p.copyOfRange(0, 6)
+    }
+
+    /** Couleur d'accent de la télécommande d'une TV (bouton de bascule vers elle). */
+    fun accent(ctx: Context, edenwood: Boolean): Int {
+        val p = palette(current(ctx), edenwood)
+        return android.graphics.Color.parseColor(p?.get(4) ?: if (edenwood) "#3D8BFF" else "#34C77B")
+    }
+
+    fun round(design: Int): Float = ROUNDS.getOrElse(design) { 1f }
 }
 
 /** Bouton rond marche/arrêt : vert si la TV est allumée, gris sinon. */

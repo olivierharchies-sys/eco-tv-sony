@@ -291,7 +291,7 @@ class MainActivity : Activity() {
 
         card.addView(cardText("TV Edenwood", 17f, Color.WHITE, true))
         card.addView(cardText(
-            "Pilote la TV Edenwood (Android TV) en Wi-Fi, avec une télécommande bleue. Le bouton " +
+            "Pilote la TV Edenwood (Android TV) en Wi-Fi, avec sa propre télécommande (couleur distincte). Le bouton " +
                 "« télécommande » en haut de la télécommande Sony y mène, et inversement. TV allumée et sur " +
                 "le même Wi-Fi : saisis son adresse IP (ou touche Détecter), puis Associer et tape le code " +
                 "affiché sur la TV. Association une seule fois.",
@@ -617,7 +617,7 @@ class MainActivity : Activity() {
 
         card.addView(cardText(
             "Évite la mise en veille automatique du décodeur : tant que la TV est allumée, l'appli lui " +
-                "envoie une touche sans effet toutes les 5 minutes (décodeur associé en Wi-Fi direct " +
+                "envoie une touche sans effet toutes les quelques minutes (décodeur associé en Wi-Fi direct " +
                 "requis). Une notification discrète reste affichée tant que c'est activé.",
             12f, Ui.DIM, false
         ))
@@ -648,6 +648,30 @@ class MainActivity : Activity() {
         val keepLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 48))
         keepLp.topMargin = Ui.dp(this, 8)
         card.addView(keepAwake, keepLp)
+
+        val design = Button(this)
+        design.isAllCaps = false
+        design.setTextColor(Color.WHITE)
+        design.setBackgroundResource(R.drawable.btn_surface)
+        fun paintDesign() {
+            design.text = "Design de la télécommande : " + RemoteDesign.NAMES[RemoteDesign.current(this)]
+        }
+        paintDesign()
+        design.setOnClickListener {
+            AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("Design de la télécommande")
+                .setSingleChoiceItems(RemoteDesign.NAMES, RemoteDesign.current(this)) { d, which ->
+                    RemoteDesign.save(this, which)
+                    paintDesign()
+                    tell("Design « ${RemoteDesign.NAMES[which]} » : visible à l'ouverture de la télécommande")
+                    d.dismiss()
+                }
+                .setNegativeButton("Annuler", null)
+                .show()
+        }
+        val designLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 48))
+        designLp.topMargin = Ui.dp(this, 8)
+        card.addView(design, designLp)
 
         val sep2 = TextView(this)
         sep2.setPadding(0, Ui.dp(this, 14), 0, 0)

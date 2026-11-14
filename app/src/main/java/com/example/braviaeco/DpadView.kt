@@ -72,7 +72,7 @@ class DpadView(
 
     init {
         ringPaint.color = Ui.SURFACE
-        hiPaint.color = Color.parseColor("#3A4150")
+        hiPaint.color = Ui.PRESSED
         sepPaint.color = Ui.BG
         sepPaint.style = Paint.Style.STROKE
         sepPaint.strokeWidth = Ui.dp(context, 3).toFloat()

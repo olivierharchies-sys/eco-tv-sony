@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.braviaeco"
         minSdk = 24
         targetSdk = 34
-        versionCode = 38
-        versionName = "2.29"
+        versionCode = 44
+        versionName = "2.35"
     }
 
     // Clé de signature fixe (fichier app/debug.keystore) : chaque compilation produit un APK

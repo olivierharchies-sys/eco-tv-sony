@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "GitZipPush"
+rootProject.name = "BraviaEco"
 include(":app")

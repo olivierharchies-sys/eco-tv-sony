@@ -1,151 +1,121 @@
-# Envoi GitHub : envoyer un zip dans un dépôt GitHub depuis le téléphone
+# Éco TV Sony : télécommande + 4 widgets pour la Sony KD-65XF9005
 
-Application Android qui fait la même chose que `unzip` + `git add -A` + `git commit` + `git push` dans Termux :
-elle prend un fichier zip, compare son contenu avec le dépôt GitHub, et crée **un seul commit** avec
-les fichiers nouveaux ou modifiés. Elle parle uniquement à `api.github.com`.
+Application Android qui pilote la TV en Wi-Fi local via l'API réseau Bravia de Sony
+(sans ADB ni droits spéciaux).
 
-## Ce qu'elle fait
+## Télécommande (sur un seul écran)
 
-- Choisir un zip (bouton **Choisir un zip**), ou le **partager** vers l'appli depuis le gestionnaire de fichiers.
-- Ignorer automatiquement le dossier racine du zip (ex. `BraviaEco/…`) : option activée par défaut quand le zip en a un.
-- N'envoyer que les fichiers qui ont changé (comparaison des empreintes Git), puis créer un seul commit.
-- Si rien n'a changé : « Rien à envoyer ».
-- Option **Supprimer du dépôt les fichiers absents du zip** (désactivée par défaut, comme avec `cp -r`).
-- Dépôt vide ou branche inexistante : créés automatiquement.
-- Boutons **Voir les Actions** et **Ouvrir le dépôt** après l'envoi.
-- **Tester la connexion** : vérifie le jeton, ses droits (`repo`, `workflow`) et l'accès au dépôt.
-- **Créer le dépôt** : crée le dépôt `pseudo/depot` s'il n'existe pas (privé par défaut, avec un fichier README initial).
-  Il faut un jeton classique avec le droit `repo`. Si le dépôt existe déjà, rien n'est modifié.
+- **Marche/Arrêt** : un seul bouton rond (vert = allumée, gris = en veille).
+- **Source** : un seul bouton qui ouvre la liste lue sur la TV (TV, HDMI 1 à 4, avec le nom donné à chaque entrée).
+- **Croix directionnelle** ronde avec OK au centre (appui prolongé = répétition).
+- Retour, Accueil, Options.
+- Volume et chaînes (double bouton + / −, appui prolongé = répétition) et Muet.
+- Lecture : précédent, retour rapide, lecture, pause, avance rapide, suivant.
+- **Clavier** : ouvre le clavier du téléphone et envoie le texte tapé dans le champ actif de la TV.
+- **Chiffres** : ouvre un pavé numérique.
 
-## Nouveautés de la version 1.11
+## Nouveautés de la version 2.19
 
-- **Le dépôt deviné n'est plus rempli d'office** : une boîte de dialogue demande « Le fichier X est-il bien lié au dépôt Y ? »
-  (avec la raison : même nom, nom proche, déjà envoyé sous ce nom, fichiers déjà présents). Réponses : *Oui, c'est lui*,
-  *Non, un autre* (ouvre « Mes dépôts ») ou *Plus tard*. Si le dépôt n'a pas été confirmé au moment d'envoyer, une dernière
-  confirmation est demandée.
-- **Formulaire Envoyer réorganisé en étapes** : 1. Ce qu'on envoie (résumé de la source, dossier racine, choix zip / dossier /
-  fichiers, dernier zip téléchargé) ; 2. Où on l'envoie (état « confirmé / à confirmer », dépôt, branche, test d'accès,
-  création d'un dépôt) ; 3. Options (suppression des fichiers absents, puis « Plus d'options ») ; 4. Envoyer (récapitulatif
-  source → dépôt · branche, avec les avertissements utiles). Les trois boutons de choix de la source tiennent sur une ligne.
-- **Copie dans `Documents/Github/<nom du dépôt>/`** quand la compilation réussit : le zip envoyé y est copié et seuls les
-  **3 zips les plus récents** du dossier sont gardés. Réglage dans Historique (activé par défaut). Fonctionne avec ou sans
-  « Accès à tous les fichiers » (Android 10 et plus).
+- **Décodeur gardé éveillé** : dans les réglages, carte « Décodeur en Wi-Fi direct » > bouton
+  **Garder le décodeur éveillé**. Tant que la TV est allumée, l'appli envoie toutes les 5 minutes
+  une touche sans effet (Maj) au décodeur, ce qui évite sa mise en veille automatique.
+  Quand la TV est éteinte ou injoignable, rien n'est envoyé : le décodeur peut dormir normalement.
+  Nécessite le décodeur associé en Wi-Fi direct. Une notification discrète reste affichée tant que
+  c'est activé. Si le téléphone passe en économie d'énergie profonde (écran éteint, immobile,
+  longtemps), Android peut suspendre ces envois : exclure l'appli de l'optimisation de la batterie.
 
-## Nouveautés de la version 1.7
+## Autres fonctions depuis la version 1.4
 
-- **Interface en tuiles** : Envoyer, APK, Historique, Rapports d'erreur, Nettoyage GitHub, Importer, Explorer, Compte.
-  « ← Accueil » ou Retour revient aux tuiles.
-- **Rapport d'erreur complet** (fichier `.md`, tuile Rapports, copie dans `Téléchargements/Envoi GitHub/Rapports d'erreur`) :
-  étapes, annotations, lignes d'erreur, fichiers cités (avec numéros de ligne), modifications depuis la dernière
-  compilation réussie (diff), fichiers Gradle/manifeste, workflow, arborescence, journal complet.
-  Trois niveaux pour économiser les tokens : **COURT** (≈ 3–5 k tokens, copié automatiquement : erreurs, extraits
-  ±8 lignes, fichiers modifiés), **MOYEN** (≈ 15 k : + fin du journal, diff, Gradle, manifeste, workflow),
-  **COMPLET** (tout). Chaque niveau contient les consignes pour que Claude demande précisément le niveau
-  supérieur ou un fichier (« Envoie le rapport MOYEN », « Envoie le fichier <chemin> »). « Relancer les jobs en échec ».
-- **Zip d'origine supprimé du téléphone** quand sa compilation échoue (réglage dans Historique, activé par défaut).
-  Seules les versions compilées avec succès restent dans l'historique.
-- **Nettoyage GitHub** : compilations échouées/anciennes (N gardées), artefacts, caches Actions, branches fusionnées ;
-  un dépôt ou tous les dépôts mémorisés ; analyse puis confirmation.
-  Option : nettoyage automatique chaque semaine. Suppression d'un dépôt entier (nom à retaper, droit `delete_repo`).
-- **versionCode incrémenté automatiquement** à chaque envoi (si le zip n'a pas déjà une valeur plus haute que le dépôt,
-  et seulement si d'autres fichiers changent).
-- **Notification de fin de compilation** : « Installer l'APK » si réussite ; « Envoyer le rapport à Claude » et
-  « Relancer » si échec.
-- **Restauration** : Historique > Plus… > « Renvoyer cette version sur GitHub » (exacte ou simple remplacement).
-- **Vérification du zip** avant envoi : settings.gradle, app/build.gradle, manifeste, workflow, doublons, `src/` à la racine.
-  Confirmation demandée si « Supprimer les fichiers absents » est activé avec un zip incomplet.
+- **Décodeur en Wi-Fi direct** (association par code, sans HDMI-CEC), clavier des applis de la TV.
+- **Télécommande Zen** (second style de télécommande), **historique**, **scènes**, **réglages d'image**
+  (4K ou upscalé), **chaînes favorites** du décodeur.
+- **Pause automatique pendant les appels** : appui long sur le bouton Muet de la télécommande.
+- **Tuiles des Réglages rapides** (marche/arrêt, muet) et widgets supplémentaires (scènes, chaînes
+  favorites, éco + lecture, widgets design).
+- **Sauvegarde / restauration** de tous les réglages.
 
-## Nouveautés de la version 1.6
+## Nouveautés de la version 1.4
 
-- **Fichier seul placé au bon endroit** : partage un fichier (ex. fichier donné par Claude) vers l'appli, sans dossier cible.
-  Emplacement choisi : (1) repère en tête de fichier `// chemin: app/src/.../X.kt` (aussi `#`, `<!-- -->`, `path:`) ;
-  (2) sinon fichier du même nom dans le dépôt (départage par `package`, puis dossier le plus fourni) ;
-  (3) sinon dossier du `package` ; sinon racine. « (1) » ajouté au nom par Android est ignoré.
-  Jamais de suppression ni de workflow automatique dans ce mode.
+Deux boutons ronds de part et d'autre de la flèche « haut » de la croix :
+
+- **À droite : applications de la TV.** Le menu affiche les applications que tu as choisies.
+  Au premier appui (ou via « Choisir les applications… », ou par un appui long), l'appli lit
+  la liste installée sur la TV et tu coches celles à garder.
+- **À gauche : applications du décodeur.** Le décodeur n'a pas d'API réseau : chaque raccourci
+  est une suite de touches que la TV lui relaie par HDMI-CEC (ex. Home → Bas → Droite → OK).
+  Dans « Gérer les applications… » : ajouter, modifier (bouton « Tester »), supprimer, et régler
+  une fois l'entrée HDMI du décodeur (l'appli y bascule d'abord si besoin).
 
 ## Nouveautés de la version 1.3
 
-- **Sauvegarde à chaque compilation réussie** : à chaque envoi qui crée un commit, une copie du zip (ou du dossier/des
-  fichiers, remis en zip) est mise de côté. L'appli surveille la compilation GitHub Actions de ce commit (25 minutes
-  au plus, visible dans le widget) : si elle réussit, la copie est gardée ; si elle échoue, elle est supprimée.
-  Les copies encore en attente sont revérifiées à chaque ouverture de l'appli (ou bouton « Vérifier les compilations
-  en attente »). La récupération de l'APK valide aussi la sauvegarde.
-  Réglages : nombre de sauvegardes gardées (30 par défaut) et copie dans `Téléchargements/Envoi GitHub/Compilations réussies`.
-- **Onglet Fichiers** : liste des sauvegardes ; « Parcourir » ouvre l'explorateur. On peut aussi parcourir n'importe
-  quel zip du téléphone, ou le zip choisi dans l'onglet Envoyer.
-- **Explorateur** : arborescence, recherche par **nom** (morceau de chemin ou motif `*.kt`, instantanée) ou dans le
-  **contenu** (toutes les occurrences, avec numéros de ligne et extraits), aperçu du texte avec surlignage et
-  « Occurrence suivante ». Cases à cocher sur les fichiers ; appui long sur un dossier = tout son contenu ;
-  « Tout cocher » coche les résultats affichés.
-- **Envoyer à Claude** (sélection, fichier seul, extrait de texte sélectionné, projet complet, import de dépôt) :
-  - **Nouvelle conversation** : partage direct vers l'appli Claude ;
-  - **Conversation existante** (y compris une conversation d'un projet) ;
-  - **Nouvelle conversation dans un projet** ;
-  - **Connaissances (contexte) d'un projet** ;
-  - **Contexte de la conversation ouverte** : copie dans le presse-papiers ;
-  - ou une autre appli.
+- **Écran verrouillé en portrait** : plus de basculement automatique.
+- **Home appareil** : envoie la touche réglée (défaut `SyncMenu`) à l'appareil HDMI sélectionné via HDMI-CEC ;
+  si la source est la TV, c'est le Home de la TV. **Home TV** : le Home de la TV, toujours.
+- **Web** : ouvre sur la TV la page et le navigateur choisis dans les réglages de l'appli.
+- **Plus** : applications de la TV, toutes les touches, volume précis, mode éco, infos TV, redémarrage.
+- **Widget « Éco TV · Télécommande »** : marche/arrêt, source, web, plus, retour, Home appareil, Home TV,
+  options, croix directionnelle, volume, muet, chaînes.
 
-  Android ne permet pas de déposer un fichier directement dans une conversation ou un projet précis : pour ces cibles,
-  l'appli copie le texte dans le presse-papiers, enregistre le `.md` dans `Téléchargements/Envoi GitHub/Pour Claude`,
-  puis ouvre la conversation ou le projet dans Claude ; il reste à coller (ou à joindre le fichier avec +).
-  Les liens des conversations et projets (`https://claude.ai/chat/…`, `https://claude.ai/project/…`) se mémorisent
-  dans **Compte > Destinations Claude** ou directement au moment de l'envoi.
+## Les widgets
 
-## Nouveautés de la version 1.2
+Appui long sur l'écran d'accueil > **Widgets** > **Éco TV Sony** :
 
-- **Trois onglets** : Envoyer, Importer, Compte.
-- **Dépôts mémorisés** : chaque dépôt utilisé avec succès est retenu (bouton « Mes dépôts », « Charger depuis GitHub » pour ajouter ceux de ton compte, « Oublier un dépôt »).
-- **Dernier zip téléchargé** : l'appli propose d'office le zip le plus récent du dossier Téléchargements
-  (il faut autoriser une fois « Accès à tous les fichiers », Android 11 et plus).
-- **Dépôt deviné** : quand tu choisis un zip, l'appli propose le dépôt d'après (1) les envois précédents du même nom
-  (« Appli-v3.zip » = « Appli-v2.zip »), (2) la ressemblance du nom, (3) les fichiers déjà présents dans tes dépôts récents.
-- **Autres sources** : un dossier complet, ou plusieurs fichiers, en plus du zip ; sous-dossier de destination facultatif ;
-  dossiers générés (build, .gradle, node_modules…) ignorés. Limite : 2500 fichiers par dossier.
-- **Projet Android complet** : si le projet n'a pas de workflow GitHub Actions, un `build.yml` est ajouté automatiquement
-  (réglage désactivable) ; il utilise `gradlew` s'il est présent, sinon Gradle installé par GitHub.
-- **Importer pour Claude** : télécharge un dépôt et le met en Markdown (arborescence + code), découpé en parties de
-  300 000 caractères au plus (8 parties maximum). Partage vers Claude, copie du texte, ou partage du zip brut.
-- **Widget « Suivi des tâches »** et notification de progression (service au premier plan) pendant les opérations longues.
+1. **Éco TV · Modes** : Off, Bas, Haut, Image off (le bouton vert est le dernier mode connu,
+   toucher le titre relit le mode réel) + bouton **Télécommande**.
+2. **Éco TV · Marche/Arrêt** : un bouton, vert quand la TV est allumée.
+3. **Éco TV · Source** : ouvre la liste des sources, affiche la dernière source choisie.
+4. **Éco TV · Volume et chaînes** : volume −, muet, volume +, chaîne −, chaîne +.
 
-## Récupérer et installer l'APK
+## 1. Préparer la TV
 
-Bouton **Récupérer et installer l'APK** (carte « Application (APK) ») :
-1. attend la fin de la compilation GitHub Actions si elle est en cours (15 minutes maximum, bouton **Annuler**) ;
-2. télécharge l'artefact de la dernière compilation réussie et en extrait le fichier `.apk` ;
-3. ouvre l'installation d'Android, que tu confirmes (Play Protect peut demander « Installer quand même »).
+Sur la TV : **Réglages > Réseau > Configuration de l'IP distante** (le chemin exact varie un peu selon la version) :
 
-L'option **Le faire automatiquement après chaque envoi** enchaîne : envoi du zip, attente de la compilation de CE commit,
-téléchargement, installation.
+1. **Authentification** : choisir *Authentification simple et clé pré-partagée*.
+2. **Clé pré-partagée** : définir une clé (par ex. `0000`), la noter.
+3. Noter l'**adresse IP** de la TV (Réglages > Réseau > État du réseau).
+   Idéal : lui réserver une IP fixe dans le routeur.
+4. Vérifier que **Contrôle simple de l'IP** est activé.
+5. Pour pouvoir **allumer** la TV depuis le téléphone, activer aussi le démarrage par le réseau
+   (selon le menu : *Démarrage à distance* / *Mise sous tension par le réseau*).
 
-La première fois, Android demande d'autoriser « Envoi GitHub » à installer des applis : l'appli ouvre l'écran
-correspondant, active l'autorisation puis reviens et relance. Le dépôt doit avoir un workflow GitHub Actions
-qui publie un artefact contenant un `.apk` (c'est le cas des projets Éco TV Sony et Envoi GitHub).
+## 2. Compiler l'APK
 
-## Le jeton GitHub
+### Option A : GitHub Actions (sans rien installer)
 
-Bouton **Créer un jeton** : ouvre GitHub avec les droits `repo` et `workflow` déjà cochés.
-Choisis une durée, génère le jeton, copie-le avec l'icône de copie, puis dans l'appli appuie sur **Coller**.
-L'appli retire les espaces et retours à la ligne invisibles et affiche la longueur (40 pour un jeton `ghp_…`).
+1. Envoyer tout le contenu de ce dossier dans un dépôt GitHub.
+2. Onglet **Actions** > workflow **Build APK** (il démarre tout seul au push, ou via *Run workflow*).
+3. Quand il est vert, ouvrir l'exécution, descendre jusqu'à **Artifacts** et télécharger **eco-tv-sony-apk**
+   (un zip contenant `app-debug.apk`).
 
-Le jeton est chiffré avec une clé de l'Android Keystore, n'est pas inclus dans les sauvegardes Android et
-n'est envoyé qu'à GitHub. **Effacer le jeton** le supprime du téléphone.
+### Option B : Android Studio
 
-Jeton « fine-grained » : donne-lui l'accès au dépôt avec *Contents : Read and write* (et *Workflows : Read and write*
-si le zip contient `.github/workflows`).
+1. *File > Open* sur ce dossier. Android Studio génère le wrapper Gradle tout seul.
+2. *Build > Build APK(s)*. Le fichier est dans `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Compiler l'APK
+## 3. Installer et configurer
 
-Comme pour Éco TV Sony : envoyer ce dossier dans un dépôt GitHub (la première fois, par exemple avec Termux),
-puis onglet **Actions** > **Build APK** > artefact **envoi-github-apk** (zip contenant `app-debug.apk`).
-Ou Android Studio : *File > Open*, puis *Build > Build APK(s)*.
+1. Copier `app-debug.apk` sur le smartphone et l'ouvrir (autoriser « sources inconnues » si demandé ;
+   si Play Protect bloque, choisir *Installer quand même*).
+2. Ouvrir l'app **Éco TV Sony**, saisir l'IP et la clé PSK, **Enregistrer**.
+3. Tester les boutons de mode, puis **Ouvrir la télécommande**.
+4. Ajouter les widgets voulus sur l'écran d'accueil.
 
-L'APK est signé avec une clé fixe (`app/debug.keystore`) : les versions suivantes s'installent par-dessus.
+## Mises à jour
 
-## Limites
+Depuis la version 1.1, l'APK est signé avec une clé fixe (`app/debug.keystore`) : les versions
+suivantes s'installent par-dessus, sans désinstaller, et les réglages (IP, clé PSK) sont conservés.
 
-- Formats tar, 7z, rar non pris en charge (zip uniquement).
-- Fichiers de plus de 95 Mo refusés (GitHub limite à 100 Mo). Pas de Git LFS.
-- Les droits d'exécution (`chmod +x`) des nouveaux fichiers ne sont pas gérés : un fichier déjà présent garde le sien.
-- Les sous-modules Git ne sont pas pris en charge ; les dossiers `.git`, `__MACOSX` et les `.DS_Store` du zip sont ignorés.
-- GitHub limite le nombre de créations de contenu par minute : l'appli attend et réessaie toute seule si besoin.
-- Un envoi fait une seule fois ne peut pas être « annulé » depuis l'appli ; utilise GitHub (Revert) si besoin.
+La clé du dépôt est une clé de test publique (mot de passe `android`) : suffisant pour un usage
+personnel, mais ne publie pas cet APK comme une appli « officielle ».
+
+## Dépannage
+
+- *Accès refusé* : la clé PSK ne correspond pas à celle de la TV.
+- *Délai dépassé* : mauvaise IP, TV éteinte ou autre réseau Wi-Fi.
+- *Sources indisponibles* : TV éteinte, ou firmware sans cet appel. La liste propose alors HDMI 1 à 4
+  et « Menu des sources de la TV ».
+- *Le clavier n'écrit rien* : il faut qu'un champ de texte soit actif à l'écran de la TV.
+- *Touche non supportée* : la TV ne connaît pas cette touche. Le nom exact est dans le message.
+- *Erreur (404…) dans une appli du décodeur après un réveil ou une longue inactivité* : le décodeur
+  était probablement en veille. Activer **Garder le décodeur éveillé**, désactiver la mise en veille
+  automatique du décodeur dans ses propres réglages, et préférer le câble Ethernet au Wi-Fi pour lui.

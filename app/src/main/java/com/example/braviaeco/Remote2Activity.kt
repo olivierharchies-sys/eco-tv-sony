@@ -26,6 +26,7 @@ class Remote2Activity : Activity() {
 
     private lateinit var actions: TvActions
     private lateinit var scenes: SceneUi
+    private lateinit var shortcuts: AppShortcuts
     private lateinit var power: PowerButton
     private lateinit var targetLabel: TextView
     private lateinit var stateLabel: TextView
@@ -46,6 +47,7 @@ class Remote2Activity : Activity() {
         actions = TvActions(this)
         actions.onStateChanged = { renderState() }
         scenes = SceneUi(this, actions)
+        shortcuts = AppShortcuts(this, actions)
 
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
@@ -137,6 +139,7 @@ class Remote2Activity : Activity() {
     override fun onDestroy() {
         super.onDestroy()
         actions.close()
+        if (::shortcuts.isInitialized) shortcuts.close()
     }
 
     // ------------------------------------------------------------------ touches volume du téléphone
@@ -337,6 +340,25 @@ class Remote2Activity : Activity() {
         texts.addView(stateLabel)
 
         bar.addView(texts, LinearLayout.LayoutParams(0, MATCH, 1f))
+
+        // Applications de l'appareil visé (TV ou décodeur) ; appui long : liste personnalisée / gestion.
+        val apps = ImageView(this)
+        apps.setImageResource(R.drawable.ic_apps)
+        apps.setColorFilter(Ui.TEXT)
+        apps.scaleType = ImageView.ScaleType.FIT_CENTER
+        apps.setPadding(dp(10), dp(10), dp(10), dp(10))
+        apps.contentDescription = "Applications"
+        apps.background = Ui.rounded(this, Color.TRANSPARENT, 22)
+        apps.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            shortcuts.showAppsForTarget()
+        }
+        apps.setOnLongClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            shortcuts.manageAppsForTarget()
+            true
+        }
+        bar.addView(apps, LinearLayout.LayoutParams(dp(44), dp(44)))
 
         // Passe à la télécommande Edenwood (bleue).
         val edenwood = ImageView(this)

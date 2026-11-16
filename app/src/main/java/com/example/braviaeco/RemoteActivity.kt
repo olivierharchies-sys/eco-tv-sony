@@ -27,6 +27,7 @@ class RemoteActivity : Activity() {
     private lateinit var actions: TvActions
     private lateinit var shortcuts: AppShortcuts
     private lateinit var power: PowerButton
+    private lateinit var title: TextView
     private lateinit var subtitle: TextView
     private lateinit var scenes: SceneUi
     private lateinit var segTv: TextView
@@ -111,9 +112,10 @@ class RemoteActivity : Activity() {
             onLongClick = { shortcuts.showDecoderApps() }
         )
         val tvAppsBtn = RoundButton.create(
-            this, R.drawable.ic_apps, "Applications de streaming",
-            onClick = { shortcuts.showStreamingApps() },
-            onLongClick = { shortcuts.showTvApps() }
+            this, R.drawable.ic_apps, "Applications de l'appareil visé",
+            // Applications de l'appareil visé (TV ou décodeur) ; appui long : liste personnalisée / gestion.
+            onClick = { shortcuts.showAppsForTarget() },
+            onLongClick = { shortcuts.manageAppsForTarget() }
         )
         // En bas : à gauche les actions rapides (écran éteint, minuteur), à droite l'image (profils mémorisés).
         val quickMenu = QuickMenu(this)
@@ -242,7 +244,8 @@ class RemoteActivity : Activity() {
             infoWorker.execute {
                 val vol = BraviaClient.getVolume(this).getOrNull()?.first
                 val content = BraviaClient.currentContent(this).getOrNull()
-                val ch = content?.number?.takeIf { it.isNotEmpty() }
+                // Le numéro lu est celui du tuner de la TV : sans objet quand le décodeur est visé.
+                val ch = content?.number?.takeIf { it.isNotEmpty() && Prefs.target(this) == Target.TV }
                 // Chaîne du tuner : gardée dans l'historique pour la reprendre plus tard.
                 if (content != null && content.uri.startsWith("tv:", ignoreCase = true)) {
                     val name = listOf(ch.orEmpty(), content.title).filter { it.isNotEmpty() }.joinToString(" ")
@@ -302,7 +305,18 @@ class RemoteActivity : Activity() {
             null -> "État inconnu"
         }
         val source = Prefs.lastSource(this)
-        subtitle.text = if (on == true && source != null) "$state · $source" else state
+        if (target == Target.DECODER) {
+            // Titre et état suivent l'appareil visé.
+            title.text = "Décodeur"
+            title.setTextColor(Ui.ACCENT)
+            chLabel?.text = "CH"
+            val link = if (Decoder.wifi(this)) "Wi-Fi" else "HDMI-CEC"
+            subtitle.text = "$link · TV ${state.lowercase()}"
+        } else {
+            title.text = "Sony Bravia"
+            title.setTextColor(Ui.TEXT)
+            subtitle.text = if (on == true && source != null) "$state · $source" else state
+        }
     }
 
     // ------------------------------------------------------------------ morceaux d'interface
@@ -339,6 +353,10 @@ class RemoteActivity : Activity() {
         view.setTextColor(if (selected) Ui.BG else Ui.TEXT)
     }
 
+    private fun toggleTarget() {
+        actions.selectTarget(if (Prefs.target(this) == Target.DECODER) Target.TV else Target.DECODER)
+    }
+
     /** Affiche la croix directionnelle ou le pavé tactile, selon le réglage. */
     private fun applyPadMode() {
         val touch = Prefs.touchpad(this)
@@ -361,36 +379,65 @@ class RemoteActivity : Activity() {
 
         val texts = LinearLayout(this)
         texts.orientation = LinearLayout.VERTICAL
-        texts.setPadding(dp(14), 0, dp(8), 0)
+        texts.setPadding(dp(10), 0, dp(4), 0)
 
-        val title = TextView(this)
+        // Une seule ligne : le texte rétrécit (ou est tronqué) au lieu de passer à la ligne et d'être coupé.
+        title = TextView(this)
         title.text = "Sony Bravia"
         title.setTextColor(Ui.TEXT)
         title.textSize = 17f
         title.setTypeface(title.typeface, android.graphics.Typeface.BOLD)
-        texts.addView(title)
+        singleLine(title, 11, 17)
+        texts.addView(title, LinearLayout.LayoutParams(MATCH, dp(24)))
 
         subtitle = TextView(this)
         subtitle.setTextColor(Ui.DIM)
         subtitle.textSize = 13f
-        texts.addView(subtitle)
+        singleLine(subtitle, 9, 13)
+        texts.addView(subtitle, LinearLayout.LayoutParams(MATCH, dp(18)))
+
+        // Toucher ou glisser sur le titre : bascule TV / décodeur.
+        texts.contentDescription = "Basculer entre la TV et le décodeur"
+        texts.isClickable = true
+        texts.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            toggleTarget()
+        }
+        var downX = 0f
+        var downY = 0f
+        texts.setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y }
+                android.view.MotionEvent.ACTION_UP -> {
+                    val dx = e.x - downX
+                    val dy = e.y - downY
+                    if (Math.abs(dx) > dp(40) && Math.abs(dx) > Math.abs(dy)) {
+                        v.isPressed = false
+                        v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        toggleTarget()
+                        return@setOnTouchListener true
+                    }
+                }
+            }
+            false
+        }
 
         bar.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
         // Historique : à gauche du bouton muet.
         val history = icon(R.drawable.ic_history, Ui.DIM)
-        history.setPadding(dp(10), dp(10), dp(10), dp(10))
+        history.setPadding(dp(9), dp(9), dp(9), dp(9))
         history.contentDescription = "Historique"
         history.background = Ui.rounded(this, Color.TRANSPARENT, 22)
         history.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             shortcuts.showHistory()
         }
-        bar.addView(history, LinearLayout.LayoutParams(dp(44), dp(44)))
+        bar.addView(history, LinearLayout.LayoutParams(dp(40), dp(40)))
 
         // Muet : à gauche du bouton de changement de télécommande.
         val mute = icon(R.drawable.ic_mute, Ui.DIM)
-        mute.setPadding(dp(10), dp(10), dp(10), dp(10))
+        mute.setPadding(dp(9), dp(9), dp(9), dp(9))
         mute.contentDescription = "Muet"
         mute.background = Ui.rounded(this, Color.TRANSPARENT, 22)
         mute.setOnClickListener {
@@ -413,11 +460,11 @@ class RemoteActivity : Activity() {
             Ui.toast(this, if (on) "Pause auto pendant les appels : activée" else "Pause auto pendant les appels : désactivée")
             true
         }
-        bar.addView(mute, LinearLayout.LayoutParams(dp(44), dp(44)))
+        bar.addView(mute, LinearLayout.LayoutParams(dp(40), dp(40)))
 
         // Passe à la télécommande Edenwood (bouton à la couleur de l'autre télécommande).
         val edenwood = icon(R.drawable.ic_switch_remote, RemoteDesign.accent(this, true))
-        edenwood.setPadding(dp(10), dp(10), dp(10), dp(10))
+        edenwood.setPadding(dp(9), dp(9), dp(9), dp(9))
         edenwood.contentDescription = "Télécommande Edenwood"
         edenwood.background = Ui.rounded(this, Color.TRANSPARENT, 22)
         edenwood.setOnClickListener {
@@ -426,10 +473,10 @@ class RemoteActivity : Activity() {
             startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
             finish()
         }
-        bar.addView(edenwood, LinearLayout.LayoutParams(dp(44), dp(44)))
+        bar.addView(edenwood, LinearLayout.LayoutParams(dp(40), dp(40)))
 
         val swap = icon(R.drawable.ic_swap, Ui.DIM)
-        swap.setPadding(dp(10), dp(10), dp(10), dp(10))
+        swap.setPadding(dp(9), dp(9), dp(9), dp(9))
         swap.contentDescription = "Télécommande Zen"
         swap.background = Ui.rounded(this, Color.TRANSPARENT, 22)
         swap.setOnClickListener {
@@ -437,22 +484,19 @@ class RemoteActivity : Activity() {
             startActivity(Intent(this, Remote2Activity::class.java))
             finish()
         }
-        bar.addView(swap, LinearLayout.LayoutParams(dp(44), dp(44)))
+        bar.addView(swap, LinearLayout.LayoutParams(dp(40), dp(40)))
 
         val gear = icon(R.drawable.ic_settings, Ui.DIM)
-        gear.setPadding(dp(10), dp(10), dp(10), dp(10))
+        gear.setPadding(dp(9), dp(9), dp(9), dp(9))
         gear.contentDescription = "Réglages"
         gear.background = Ui.rounded(this, Color.TRANSPARENT, 22)
         gear.setOnClickListener { startActivity(Intent(this, MainActivity::class.java)) }
-        bar.addView(gear, LinearLayout.LayoutParams(dp(44), dp(44)))
+        bar.addView(gear, LinearLayout.LayoutParams(dp(40), dp(40)))
 
         return bar
     }
 
     /** Double bouton + / − avec un libellé au milieu. Reste appuyé = répétition. */
-    private fun rocker(label: String, upKey: String, downKey: String): LinearLayout =
-        rocker(label, { repeat -> actions.key(upKey, repeat = repeat) }, { repeat -> actions.key(downKey, repeat = repeat) })
-
     private fun rocker(label: String, onUp: (Boolean) -> Unit, onDown: (Boolean) -> Unit): LinearLayout {
         val box = LinearLayout(this)
         box.orientation = LinearLayout.VERTICAL
@@ -531,23 +575,25 @@ class RemoteActivity : Activity() {
 
     private fun dp(value: Int): Int = Ui.dp(this, value)
 
+    /** Texte sur une ligne : taille auto (Android 8+) jusqu'à [minSp], sinon « … ». */
+    private fun singleLine(t: TextView, minSp: Int, maxSp: Int) {
+        t.maxLines = 1
+        t.setSingleLine(true)
+        t.ellipsize = android.text.TextUtils.TruncateAt.END
+        t.gravity = Gravity.CENTER_VERTICAL
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            t.setAutoSizeTextTypeUniformWithConfiguration(
+                minSp, maxSp, 1,
+                android.util.TypedValue.COMPLEX_UNIT_SP
+            )
+        }
+    }
+
     private fun icon(res: Int, tint: Int): ImageView {
         val v = ImageView(this)
         v.setImageResource(res)
         v.setColorFilter(tint)
         v.scaleType = ImageView.ScaleType.FIT_CENTER
-        return v
-    }
-
-    private fun iconButton(res: Int, description: String, onClick: () -> Unit): ImageView {
-        val v = icon(res, Ui.TEXT)
-        v.setPadding(dp(14), dp(14), dp(14), dp(14))
-        v.contentDescription = description
-        v.background = Ui.rounded(this, Ui.SURFACE, 20)
-        v.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            onClick()
-        }
         return v
     }
 

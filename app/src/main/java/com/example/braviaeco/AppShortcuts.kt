@@ -100,6 +100,18 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
 
     private fun dialog() = AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
 
+    // ================================================================== selon l'appareil visé
+
+    /** Applications de l'appareil choisi par le sélecteur TV / Décodeur. */
+    fun showAppsForTarget() {
+        if (Prefs.target(act) == Target.DECODER) showDecoderApps() else showStreamingApps()
+    }
+
+    /** Appui long : liste personnalisée de la TV, ou gestion des raccourcis du décodeur. */
+    fun manageAppsForTarget() {
+        if (Prefs.target(act) == Target.DECODER) manageDecoderApps() else showTvApps()
+    }
+
     // ================================================================== TV
 
     fun showTvApps() {
@@ -290,8 +302,19 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
 
     // ================================================================== décodeur
 
+    /**
+     * Raccourcis du décodeur, plus (en Wi-Fi direct) les applications courantes
+     * pas encore enregistrées : ouvertes directement sur le décodeur.
+     */
     fun showDecoderApps() {
-        val apps = ShortcutPrefs.decoderApps(act)
+        val saved = ShortcutPrefs.decoderApps(act)
+        val savedNames = saved.map { it.name.lowercase() }.toSet()
+        val known = if (Decoder.wifi(act)) {
+            Decoder.KNOWN_APPS
+                .filter { it.first.lowercase() !in savedNames }
+                .map { DecoderApp(it.first, listOf(Decoder.APP_PREFIX + it.second)) }
+        } else emptyList()
+        val apps = saved + known
         if (apps.isEmpty()) {
             manageDecoderApps()
             return

@@ -26,7 +26,12 @@ object Decoder {
         "Netflix" to "com.netflix.ninja",
         "YouTube" to "com.google.android.youtube.tv",
         "Prime Video" to "com.amazon.amazonvideo.livingroom",
-        "Disney+" to "com.disney.disneyplus"
+        "Disney+" to "com.disney.disneyplus",
+        "Auvio" to "be.rtbf.auvio",
+        "RTL play" to "com.tapptic.rtl.tvi",
+        "VRT MAX" to "be.vrt.vrtnu",
+        "VTM GO" to "be.vmma.vtm.zenderapp",
+        "Streamz" to "be.dpgmedia.streamz"
     )
 
     fun appLabel(link: String): String = KNOWN_APPS.firstOrNull { it.second == link }?.first ?: link

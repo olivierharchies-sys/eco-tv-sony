@@ -37,7 +37,7 @@ object BtRoom {
     private var scanning = false
     private var lastScan = 0L
 
-    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     fun adapter(ctx: Context): BluetoothAdapter? =
         (ctx.applicationContext.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter

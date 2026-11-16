@@ -666,7 +666,7 @@ data class EdenwoodApp(val title: String, val link: String)
 
 /** Liste des applications de streaming de la Edenwood (modifiable) et applications récentes. */
 object EdenwoodApps {
-    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     /**
      * Liens d'ouverture reconnus par Android TV (le lien « market://launch » n'ouvre pas ces applis).

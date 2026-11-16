@@ -22,7 +22,7 @@ import kotlin.concurrent.thread
 data class Channel(val name: String, val number: Int)
 
 object ChannelPrefs {
-    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     fun channels(ctx: Context): List<Channel> {
         val arr = runCatching { JSONArray(sp(ctx).getString("channels", "[]")) }.getOrElse { JSONArray() }
@@ -143,6 +143,7 @@ abstract class SlotWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action != action) return
+        if (!WidgetIntents.authorized(context, intent)) return
         val index = intent.getIntExtra(EXTRA_INDEX, -1)
         if (index < 0) return
 
@@ -174,6 +175,7 @@ abstract class SlotWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(LABELS[i], items[i])
                 views.setTextViewText(BADGES[i], badge(items[i]))
                 val intent = Intent(context, javaClass).setAction(action).putExtra(EXTRA_INDEX, i)
+                    .putExtra(WidgetIntents.EXTRA_TOKEN, WidgetIntents.token(context))
                 views.setOnClickPendingIntent(id, PendingIntent.getBroadcast(context, baseCode + i, intent, flags))
             } else {
                 views.setViewVisibility(id, View.INVISIBLE)

@@ -150,7 +150,7 @@ object RemoteDesign {
     )
     private val ROUNDS = floatArrayOf(1f, 1f, 1f, 1.35f, 0.3f)
 
-    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     fun current(ctx: Context): Int = sp(ctx).getInt("remote_design", 0).coerceIn(0, NAMES.size - 1)
 

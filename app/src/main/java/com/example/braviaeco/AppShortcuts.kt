@@ -22,10 +22,9 @@ data class DecoderApp(val name: String, val keys: List<String>)
 
 /** Listes choisies par l'utilisateur, enregistrées sur le téléphone. */
 object ShortcutPrefs {
-    private const val FILE = "bravia_eco"
     const val WAIT = "WAIT"
 
-    private fun sp(ctx: Context) = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     // --- Applications de la TV (choisies dans la liste lue sur la TV)
     fun tvApps(ctx: Context): List<TvApp> {

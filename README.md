@@ -1,4 +1,4 @@
-# Éco TV Sony : télécommande + 4 widgets pour la Sony KD-65XF9005
+# Éco TV Sony : télécommande + widgets pour la Sony KD-65XF9005
 
 Application Android qui pilote la TV en Wi-Fi local via l'API réseau Bravia de Sony
 (sans ADB ni droits spéciaux).
@@ -14,10 +14,20 @@ Application Android qui pilote la TV en Wi-Fi local via l'API réseau Bravia de 
 - **Clavier** : ouvre le clavier du téléphone et envoie le texte tapé dans le champ actif de la TV.
 - **Chiffres** : ouvre un pavé numérique.
 
+## Nouveautés de la version 2.36
+
+- **Sécurité** : les boutons des widgets ne répondent plus qu'à cette appli (jeton secret par installation) ;
+  le certificat du décodeur / de la TV Android est épinglé après l'association (si l'appareil change de
+  certificat, refaire l'association) ; la sauvegarde Android est désactivée ; l'export des réglages est
+  chiffré par mot de passe (les anciennes sauvegardes en clair restent importables).
+- **Robustesse** : un appareil lent ne bloque plus les touches des autres ; plafond sur la taille des messages
+  reçus ; import d'une sauvegarde pris en compte sans relancer l'appli ; Wake-on-LAN sur le vrai sous-réseau
+  (plus seulement /24) ; le maintien éveillé renonce aux nouveaux essais s'il a déjà été trop long.
+
 ## Nouveautés de la version 2.19
 
 - **Décodeur gardé éveillé** : dans les réglages, carte « Décodeur en Wi-Fi direct » > bouton
-  **Garder le décodeur éveillé**. Tant que la TV est allumée, l'appli envoie toutes les 5 minutes
+  **Garder le décodeur éveillé**. Tant que la TV est allumée, l'appli envoie toutes les 4 minutes
   une touche sans effet (Maj) au décodeur, ce qui évite sa mise en veille automatique.
   Quand la TV est éteinte ou injoignable, rien n'est envoyé : le décodeur peut dormir normalement.
   Nécessite le décodeur associé en Wi-Fi direct. Une notification discrète reste affichée tant que

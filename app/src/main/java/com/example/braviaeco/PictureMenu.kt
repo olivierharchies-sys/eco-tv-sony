@@ -156,7 +156,7 @@ class PictureMenu(private val act: Activity) {
             act.runOnUiThread {
                 val body = result.getOrNull()
                 if (body != null) {
-                    act.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+                    AppPrefs.sp(act)
                         .edit().putString("picture_kind", kind.name).apply()
                     toast("Image réglée : ${kind.label}")
                     report("Profil ${kind.label}", body)

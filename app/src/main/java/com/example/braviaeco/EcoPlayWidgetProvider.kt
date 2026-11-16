@@ -19,6 +19,7 @@ class EcoPlayWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
         val action = intent.action
         if (action != ACTION_MODE && action != ACTION_KEY) return
+        if (!WidgetIntents.authorized(context, intent)) return
         val value = intent.getStringExtra(EXTRA_VALUE) ?: return
 
         val pending = goAsync()

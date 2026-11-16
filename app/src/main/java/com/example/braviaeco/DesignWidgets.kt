@@ -14,7 +14,7 @@ import kotlin.concurrent.thread
 /** Actions communes aux widgets « design » : envoi d'une touche, écran éteint. */
 object DesignActions {
 
-    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     /** Envoie une touche à l'appareil visé par la télécommande (volume et muet restent sur la TV). */
     fun key(ctx: Context, name: String): Result<Unit> {
@@ -73,6 +73,7 @@ abstract class DesignWidget : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action != action()) return
+        if (!WidgetIntents.authorized(context, intent)) return
         val cmd = intent.getStringExtra(EXTRA_CMD) ?: return
         val pending = goAsync()
         thread {
@@ -129,7 +130,7 @@ class ImageDesignWidget : DesignWidget() {
         R.id.dw_img_off to "off"
     )
 
-    private fun sp(context: Context) = context.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+    private fun sp(context: Context) = AppPrefs.sp(context)
 
     override fun run(context: Context, cmd: String): String? = when (cmd) {
         "4k", "up" -> {

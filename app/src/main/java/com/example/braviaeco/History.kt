@@ -28,10 +28,9 @@ data class HistoryEntry(
 
 /** Derniers programmes / applications lancés depuis la télécommande, enregistrés sur le téléphone. */
 object History {
-    private const val FILE = "bravia_eco"
     private const val MAX = 30
 
-    private fun sp(ctx: Context) = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     @Synchronized
     fun list(ctx: Context): List<HistoryEntry> {

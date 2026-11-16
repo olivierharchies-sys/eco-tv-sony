@@ -10,13 +10,12 @@ import org.json.JSONObject
  * télécommande quand l'entrée a changé depuis la dernière fois.
  */
 object PictureSlots {
-    private const val FILE = "bravia_eco"
     private const val K_SLOTS = "picture_slots"
     private const val K_LAST = "picture_slot_last"
     private const val K_AUTO = "picture_slot_auto"
     private const val K_AUTO_SEEN = "picture_slot_auto_seen"
 
-    private fun sp(ctx: Context) = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     private fun readAll(ctx: Context): JSONObject =
         runCatching { JSONObject(sp(ctx).getString(K_SLOTS, null) ?: "{}") }.getOrDefault(JSONObject())

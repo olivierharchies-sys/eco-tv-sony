@@ -17,7 +17,7 @@ import java.util.concurrent.Executors
 
 /** Réglage « pause automatique pendant un appel » (appel téléphonique, WhatsApp…). */
 object CallPause {
-    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     fun enabled(ctx: Context): Boolean = sp(ctx).getBoolean("call_pause", false)
 

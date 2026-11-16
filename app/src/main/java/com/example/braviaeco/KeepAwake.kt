@@ -22,7 +22,7 @@ import kotlin.concurrent.thread
 
 /** Réglage « garder le décodeur éveillé tant que la TV est allumée ». */
 object KeepAwake {
-    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     fun enabled(ctx: Context): Boolean = sp(ctx).getBoolean("keep_awake", false)
 
@@ -147,7 +147,8 @@ class KeepAwakeReceiver : BroadcastReceiver() {
         val wifi = wm?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "EcoTv:keepAwake")
         cpu.setReferenceCounted(false)
         wifi?.setReferenceCounted(false)
-        cpu.acquire(25_000L)
+        // Le passage le plus long (TV puis décodeur injoignables, avec nouvel essai) reste sous cette limite.
+        cpu.acquire(WORK_LIMIT_MS + 15_000L)
         runCatching { wifi?.acquire() }
         thread(isDaemon = true, name = "keep-awake") {
             try {
@@ -166,8 +167,15 @@ class KeepAwakeReceiver : BroadcastReceiver() {
     private fun ping(app: Context) {
         if (!Decoder.wifi(app)) return
         if (!onHomeWifi(app)) return
+        val started = SystemClock.elapsedRealtime()
+        // Pas de nouvel essai si le premier a déjà pris trop de temps (wake lock et délai du récepteur limités).
+        fun late() = SystemClock.elapsedRealtime() - started > WORK_LIMIT_MS
         val tvOn = BraviaClient.getPowerOn(app).getOrNull()
-            ?: run { Thread.sleep(3000); BraviaClient.getPowerOn(app).getOrNull() }
+            ?: run {
+                if (late()) return
+                Thread.sleep(3000)
+                BraviaClient.getPowerOn(app).getOrNull()
+            }
             ?: return
         if (!tvOn) {
             KeepAwake.report(app, true)
@@ -178,27 +186,32 @@ class KeepAwakeReceiver : BroadcastReceiver() {
             return
         }
         AtvRemote.disconnect(AtvDevice.DECODER)
+        if (late()) {
+            KeepAwake.report(app, false)
+            return
+        }
         Thread.sleep(3000)
         KeepAwake.report(app, AtvRemote.sendKey(app, KEY_SHIFT).isSuccess)
     }
 
-    /** Téléphone en Wi-Fi, sur le même réseau (/24) que le décodeur. */
+    /** Téléphone en Wi-Fi, sur le même sous-réseau (selon son vrai masque) que le décodeur. */
     private fun onHomeWifi(app: Context): Boolean = runCatching {
         val cm = app.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val net = cm.activeNetwork ?: return false
         val caps = cm.getNetworkCapabilities(net) ?: return false
         if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return false
-        val decoder = AtvPrefs.ip(app).trim()
-        val prefix = decoder.substringBeforeLast('.', "")
-        if (prefix.isEmpty() || prefix.count { it == '.' } != 2) return true
-        val addrs = cm.getLinkProperties(net)?.linkAddresses ?: return true
-        val mine = addrs.mapNotNull { (it.address as? Inet4Address)?.hostAddress }
-        mine.isEmpty() || mine.any { it.substringBeforeLast('.') == prefix }
+        val decoder = Subnet.parse(AtvPrefs.ip(app)) ?: return true
+        val mine = cm.getLinkProperties(net)?.linkAddresses?.firstOrNull { it.address is Inet4Address } ?: return true
+        val mineIp = Subnet.parse((mine.address as Inet4Address).hostAddress.orEmpty()) ?: return true
+        Subnet.same(mineIp, decoder, mine.prefixLength)
     }.getOrDefault(true)
 
     companion object {
         /** Intervalle entre deux touches (Android peut l'allonger à ~9 min en veille profonde). */
         private const val INTERVAL_MS = 4 * 60 * 1000L
+
+        /** Durée après laquelle un passage renonce aux nouveaux essais. */
+        private const val WORK_LIMIT_MS = 20_000L
 
         /** KEYCODE_SHIFT_LEFT : ne déclenche aucune action dans les menus ni les applications. */
         private const val KEY_SHIFT = 59

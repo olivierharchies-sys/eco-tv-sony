@@ -21,6 +21,9 @@ class EcoWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
 
+        if (intent.action == ACTION_SET || intent.action == ACTION_REFRESH) {
+            if (!WidgetIntents.authorized(context, intent)) return
+        }
         when (intent.action) {
             ACTION_SET -> {
                 val mode = EcoMode.fromApi(intent.getStringExtra(EXTRA_MODE)) ?: return
@@ -116,6 +119,7 @@ class EcoWidgetProvider : AppWidgetProvider() {
 
         private fun broadcast(context: Context, action: String, mode: EcoMode?): PendingIntent {
             val intent = Intent(context, EcoWidgetProvider::class.java).setAction(action)
+                .putExtra(WidgetIntents.EXTRA_TOKEN, WidgetIntents.token(context))
             if (mode != null) intent.putExtra(EXTRA_MODE, mode.api)
             // requestCode distinct par action/mode pour éviter que les PendingIntent s'écrasent
             val requestCode = (action.hashCode() * 31) + (mode?.ordinal ?: 99)

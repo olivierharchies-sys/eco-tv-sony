@@ -28,7 +28,7 @@ object RoomSwitch {
     /** Écart minimal (dB) entre les deux pièces pour trancher ; en dessous, on ne change rien. */
     private const val MARGIN_DB = 6
 
-    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     fun enabled(ctx: Context): Boolean = sp(ctx).getBoolean("room_auto", false)
 

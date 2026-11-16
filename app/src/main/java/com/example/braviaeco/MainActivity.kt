@@ -778,10 +778,15 @@ class MainActivity : Activity() {
         column.addView(card, column.childCount - 1, lp)
     }
 
-    private fun exportSettings() {
-        val prefs = getSharedPreferences("bravia_eco", MODE_PRIVATE)
+    /** Réglages propres à cette installation : ni exportés ni restaurés (jeton des widgets). */
+    private val backupSkip = setOf("widget_token")
+
+    /** Contenu de la sauvegarde, en JSON clair (à chiffrer avant tout partage). */
+    private fun backupJson(): String {
+        val prefs = AppPrefs.sp(this)
         val root = org.json.JSONObject()
         for ((key, value) in prefs.all) {
+            if (key in backupSkip) continue
             val item = org.json.JSONObject()
             when (value) {
                 is String -> item.put("t", "s").put("v", value)
@@ -794,11 +799,82 @@ class MainActivity : Activity() {
             }
             if (item.length() > 0) root.put(key, item)
         }
+        return root.toString()
+    }
+
+    private fun passphraseField(hint: String): EditText {
+        val field = EditText(this)
+        field.hint = hint
+        field.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        return field
+    }
+
+    private fun charsOf(field: EditText): CharArray =
+        CharArray(field.length()).also { field.text.getChars(0, field.length(), it, 0) }
+
+    /** Demande un mot de passe, chiffre la sauvegarde (elle contient les clés de la TV), puis la propose au partage. */
+    private fun exportSettings() {
+        val pass = passphraseField("Mot de passe (${BackupCrypto.MIN_PASSPHRASE} caractères minimum)")
+        AlertDialog.Builder(this)
+            .setTitle("Chiffrer la sauvegarde")
+            .setMessage(
+                "La sauvegarde contient la clé PSK de la TV et les clés d'association. " +
+                    "Elle est chiffrée avec ce mot de passe : retiens-le, sans lui elle est illisible."
+            )
+            .setView(pass)
+            .setPositiveButton("Exporter") { _, _ ->
+                val chars = charsOf(pass)
+                if (chars.size < BackupCrypto.MIN_PASSPHRASE) {
+                    tell("Mot de passe trop court (${BackupCrypto.MIN_PASSPHRASE} caractères minimum)")
+                } else {
+                    tell("Chiffrement…")
+                    thread {
+                        val encrypted = runCatching { BackupCrypto.encrypt(backupJson(), chars) }
+                        runOnUiThread {
+                            if (isFinishing) return@runOnUiThread
+                            encrypted
+                                .onSuccess { shareBackup(it) }
+                                .onFailure { tell("Export impossible : ${it.message}") }
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Annuler", null)
+            .show()
+    }
+
+    private fun shareBackup(text: String) {
         val send = Intent(Intent.ACTION_SEND)
             .setType("text/plain")
-            .putExtra(Intent.EXTRA_SUBJECT, "Sauvegarde Éco TV")
-            .putExtra(Intent.EXTRA_TEXT, root.toString())
+            .putExtra(Intent.EXTRA_SUBJECT, "Sauvegarde Éco TV (chiffrée)")
+            .putExtra(Intent.EXTRA_TEXT, text)
         startActivity(Intent.createChooser(send, "Exporter les réglages"))
+    }
+
+    /** Sauvegarde chiffrée : demande le mot de passe. Ancienne sauvegarde en clair : importée telle quelle. */
+    private fun importText(text: String) {
+        if (!BackupCrypto.isEncrypted(text)) {
+            restoreSettings(text)
+            return
+        }
+        val pass = passphraseField("Mot de passe de la sauvegarde")
+        AlertDialog.Builder(this)
+            .setTitle("Sauvegarde chiffrée")
+            .setView(pass)
+            .setPositiveButton("Déchiffrer") { _, _ ->
+                val chars = charsOf(pass)
+                thread {
+                    val plain = runCatching { BackupCrypto.decrypt(text, chars) }
+                    runOnUiThread {
+                        if (isFinishing) return@runOnUiThread
+                        plain
+                            .onSuccess { restoreSettings(it) }
+                            .onFailure { tell(it.message ?: "Mot de passe incorrect") }
+                    }
+                }
+            }
+            .setNegativeButton("Annuler", null)
+            .show()
     }
 
     private fun importSettings() {
@@ -810,7 +886,7 @@ class MainActivity : Activity() {
             .setTitle("Importer des réglages")
             .setMessage("Les réglages actuels de l'appli seront remplacés par ceux de la sauvegarde.")
             .setView(edit)
-            .setPositiveButton("Importer") { _, _ -> restoreSettings(edit.text.toString()) }
+            .setPositiveButton("Importer") { _, _ -> importText(edit.text.toString()) }
             .setNegativeButton("Annuler", null)
             .show()
     }
@@ -821,6 +897,7 @@ class MainActivity : Activity() {
             val root = org.json.JSONObject(text.trim())
             val ops = ArrayList<(android.content.SharedPreferences.Editor) -> Unit>()
             for (key in root.keys()) {
+                if (key in backupSkip) continue
                 val item = root.getJSONObject(key)
                 when (item.getString("t")) {
                     "s" -> { val v = item.getString("v"); ops.add { it.putString(key, v) } }
@@ -837,10 +914,15 @@ class MainActivity : Activity() {
                 }
             }
             if (ops.isEmpty()) error("Sauvegarde vide")
-            val editor = getSharedPreferences("bravia_eco", MODE_PRIVATE).edit()
+            val prefs = AppPrefs.sp(this)
+            val keep = backupSkip.mapNotNull { k -> prefs.getString(k, null)?.let { k to it } }
+            val editor = prefs.edit()
             editor.clear()
             ops.forEach { it(editor) }
+            keep.forEach { (k, v) -> editor.putString(k, v) }
             editor.apply()
+            // Clé et certificat d'association remplacés : l'appli doit oublier ceux gardés en mémoire.
+            thread { AtvRemote.reset() }
             tell("Réglages importés : ${ops.size} éléments")
             recreate()
         } catch (e: Exception) {
@@ -867,12 +949,12 @@ class MainActivity : Activity() {
     }
 
     private fun lastPictureKind(): Picture.Kind? = runCatching {
-        val name = getSharedPreferences("bravia_eco", MODE_PRIVATE).getString("picture_kind", null)
+        val name = AppPrefs.sp(this).getString("picture_kind", null)
         Picture.Kind.values().firstOrNull { it.name == name }
     }.getOrNull()
 
     private fun savePictureKind(kind: Picture.Kind) {
-        getSharedPreferences("bravia_eco", MODE_PRIVATE).edit().putString("picture_kind", kind.name).apply()
+        AppPrefs.sp(this).edit().putString("picture_kind", kind.name).apply()
     }
 
     private fun applyPicture(kind: Picture.Kind, why: String) {

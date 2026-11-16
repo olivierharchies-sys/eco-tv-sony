@@ -37,9 +37,8 @@ data class PlayingContent(val uri: String, val title: String, val program: Strin
 
 /** Réglages enregistrés sur le téléphone. */
 object Prefs {
-    private const val FILE = "bravia_eco"
 
-    private fun sp(ctx: Context) = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     fun ip(ctx: Context): String = sp(ctx).getString("ip", "") ?: ""
     fun psk(ctx: Context): String = sp(ctx).getString("psk", "") ?: ""
@@ -149,6 +148,9 @@ object Prefs {
     }
 }
 
+/** Erreur renvoyée par l'API de la TV, avec son code (7 = état illégal, p. ex. aucune source ou aucun clavier à l'écran). */
+class TvApiException(val code: Int, message: String) : IllegalStateException(message)
+
 /** Le clavier système de la TV n'est pas affiché : la TV refuse le texte envoyé d'un bloc. */
 class NoTextFieldException : IllegalStateException("Aucun champ de saisie ouvert sur la TV")
 
@@ -157,7 +159,7 @@ object BraviaClient {
 
     private const val IRCC_ACTION = "\"urn:schemas-sony-com:service:IRCC:1#X_SendIRCC\""
 
-    /** Codes IRCC de la télécommande, lus une fois sur la TV (clé = IP pour invalider si elle change). */
+    /** Codes IRCC de la télécommande, lus une fois sur la TV (clé = IP + PSK pour invalider si l'un change). */
     @Volatile
     private var codeCache: Pair<String, Map<String, String>>? = null
 
@@ -199,15 +201,18 @@ object BraviaClient {
      */
     fun togglePower(ctx: Context): Result<Boolean> = runCatching { toggle(ctx) }
 
+    /** État d'alimentation avec un délai court ; null si la TV ne répond pas (veille profonde, hors réseau). */
+    private fun readPowerQuick(ctx: Context): Boolean? = try {
+        val result = call(ctx, "system", "getPowerStatus", JSONArray(), timeoutMs = 1500)
+        result.optJSONObject(0)?.optString("status") == "active"
+    } catch (e: Exception) {
+        null
+    }
+
     private fun powerParams(on: Boolean) = JSONArray().put(JSONObject().put("status", on))
 
     private fun toggle(ctx: Context): Boolean {
-        val current: Boolean? = try {
-            val result = call(ctx, "system", "getPowerStatus", JSONArray(), timeoutMs = 1500)
-            result.optJSONObject(0)?.optString("status") == "active"
-        } catch (e: Exception) {
-            null
-        }
+        val current = readPowerQuick(ctx)
         if (current != null) {
             if (current) rememberMac(ctx)
             val target = !current
@@ -240,12 +245,7 @@ object BraviaClient {
     fun powerOn(ctx: Context): Result<Boolean> = runCatching { ensureOn(ctx) }
 
     private fun ensureOn(ctx: Context): Boolean {
-        val current: Boolean? = try {
-            val result = call(ctx, "system", "getPowerStatus", JSONArray(), timeoutMs = 1500)
-            result.optJSONObject(0)?.optString("status") == "active"
-        } catch (e: Exception) {
-            null
-        }
+        val current = readPowerQuick(ctx)
         if (current == true) {
             Prefs.savePower(ctx, true)
             return false
@@ -284,37 +284,8 @@ object BraviaClient {
 
     /** Envoie le « paquet magique » Wake-on-LAN. false si l'adresse MAC n'est pas encore connue. */
     private fun wakeOnLan(ctx: Context): Boolean {
-        val text = Prefs.mac(ctx)
-        if (!isMac(text)) return false
-        return runCatching {
-            val parts = text.split(':', '-')
-            val mac = ByteArray(6) { parts[it].toInt(16).toByte() }
-            val packet = ByteArray(102)
-            for (i in 0 until 6) packet[i] = 0xFF.toByte()
-            for (i in 1..16) System.arraycopy(mac, 0, packet, i * 6, 6)
-
-            val targets = LinkedHashSet<String>()
-            targets.add("255.255.255.255")
-            val ip = Prefs.ip(ctx)
-            val dot = ip.lastIndexOf('.')
-            if (dot > 0) targets.add(ip.substring(0, dot) + ".255")
-
-            val socket = java.net.DatagramSocket()
-            try {
-                socket.broadcast = true
-                for (target in targets) {
-                    for (port in intArrayOf(9, 7)) {
-                        runCatching {
-                            val address = java.net.InetAddress.getByName(target)
-                            socket.send(java.net.DatagramPacket(packet, packet.size, address, port))
-                        }
-                    }
-                }
-            } finally {
-                socket.close()
-            }
-            true
-        }.getOrDefault(false)
+        if (!isMac(Prefs.mac(ctx))) return false
+        return WakeOnLan.send(Prefs.mac(ctx), Prefs.ip(ctx), WakeOnLan.subnetBroadcast(ctx))
     }
 
     // ---------------------------------------------------------------- clavier
@@ -323,10 +294,10 @@ object BraviaClient {
     fun setText(ctx: Context, text: String): Result<Unit> = runCatching {
         try {
             call(ctx, "appControl", "setTextForm", JSONArray().put(text))
-        } catch (e: IllegalStateException) {
+        } catch (e: TvApiException) {
             // Erreur 7 (Illegal State) : le clavier système de la TV n'est pas à l'écran
             // (aucun champ de saisie, ou application avec son propre clavier).
-            if (e.message?.endsWith("(7)") == true) throw NoTextFieldException()
+            if (e.code == 7) throw NoTextFieldException()
             throw e
         }
         Unit
@@ -387,7 +358,7 @@ object BraviaClient {
     fun syncSource(ctx: Context): Result<String> = runCatching {
         val read = currentInputUri(ctx)
         val failure = read.exceptionOrNull()
-        if (failure is IllegalStateException && failure.message?.startsWith("TV :") == true) {
+        if (failure is TvApiException) {
             Prefs.saveSource(ctx, Prefs.SOURCE_APP)
             return@runCatching Prefs.APP_URI
         }
@@ -568,7 +539,7 @@ object BraviaClient {
     }
 
     private fun remoteCodes(ctx: Context): Map<String, String> {
-        val ip = Prefs.ip(ctx)
+        val ip = Prefs.ip(ctx) + "|" + Prefs.psk(ctx)
         codeCache?.let { if (it.first == ip) return it.second }
 
         val result = call(ctx, "system", "getRemoteControllerInfo", JSONArray())
@@ -679,7 +650,7 @@ object BraviaClient {
             val json = JSONObject(text)
             if (json.has("error")) {
                 val err = json.getJSONArray("error")
-                error("TV : ${err.optString(1, "erreur")} (${err.optInt(0)})")
+                throw TvApiException(err.optInt(0), "TV : ${err.optString(1, "erreur")} (${err.optInt(0)})")
             }
             return json.optJSONArray("result") ?: JSONArray()
         } finally {

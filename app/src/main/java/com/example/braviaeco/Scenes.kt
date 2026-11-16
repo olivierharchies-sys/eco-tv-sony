@@ -20,7 +20,7 @@ import kotlin.concurrent.thread
 data class Scene(val name: String, val steps: List<String>)
 
 object ScenePrefs {
-    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     fun scenes(ctx: Context): List<Scene> {
         val text = sp(ctx).getString("scenes", null) ?: return defaults(ctx)
@@ -132,7 +132,7 @@ object SceneRunner {
 
 /** Minuterie de veille : éteint la TV après le délai choisi. */
 object SleepTimer {
-    private fun sp(ctx: Context) = ctx.getSharedPreferences("bravia_eco", Context.MODE_PRIVATE)
+    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
 
     private fun intent(ctx: Context): PendingIntent = PendingIntent.getBroadcast(
         ctx, 9901, Intent(ctx, SleepReceiver::class.java),

@@ -14,6 +14,36 @@ object WidgetIntents {
 
     private const val FLAGS = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
 
+    /** Extra portant le jeton secret de l'appli (voir [authorized]). */
+    const val EXTRA_TOKEN = "widget_token"
+
+    private const val TOKEN_PREF = "widget_token"
+
+    /**
+     * Jeton aléatoire propre à cette installation. Les récepteurs de widgets doivent être exportés
+     * (le système leur envoie les mises à jour) : sans ce jeton, n'importe quelle autre appli du
+     * téléphone pourrait leur envoyer une action et piloter la TV.
+     */
+    @Synchronized
+    fun token(context: Context): String {
+        val sp = AppPrefs.sp(context)
+        sp.getString(TOKEN_PREF, null)?.takeIf { it.length >= 32 }?.let { return it }
+        val bytes = ByteArray(16)
+        java.security.SecureRandom().nextBytes(bytes)
+        val created = bytes.joinToString("") { "%02x".format(it) }
+        sp.edit().putString(TOKEN_PREF, created).apply()
+        return created
+    }
+
+    /** true si l'intention vient d'un PendingIntent créé par cette appli (porte le bon jeton). */
+    fun authorized(context: Context, intent: Intent): Boolean {
+        val given = intent.getStringExtra(EXTRA_TOKEN) ?: return false
+        return java.security.MessageDigest.isEqual(
+            given.toByteArray(Charsets.UTF_8),
+            token(context).toByteArray(Charsets.UTF_8)
+        )
+    }
+
     /** Diffusion vers un widget. [code] doit être unique par bouton (les extras ne distinguent pas les PendingIntent). */
     fun broadcast(
         context: Context,
@@ -23,7 +53,7 @@ object WidgetIntents {
         extraKey: String? = null,
         extraValue: String? = null
     ): PendingIntent {
-        val intent = Intent(context, target).setAction(action)
+        val intent = Intent(context, target).setAction(action).putExtra(EXTRA_TOKEN, token(context))
         if (extraKey != null) intent.putExtra(extraKey, extraValue)
         return PendingIntent.getBroadcast(context, code, intent, FLAGS)
     }
@@ -44,6 +74,7 @@ class PowerWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action != ACTION_TOGGLE) return
+        if (!WidgetIntents.authorized(context, intent)) return
 
         val pending = goAsync()
         thread {
@@ -133,6 +164,7 @@ class MiniRemoteWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action != ACTION_KEY) return
+        if (!WidgetIntents.authorized(context, intent)) return
         val key = intent.getStringExtra(EXTRA_KEY) ?: return
 
         val pending = goAsync()
@@ -182,6 +214,7 @@ class RemoteWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action != ACTION_KEY) return
+        if (!WidgetIntents.authorized(context, intent)) return
         val key = intent.getStringExtra(EXTRA_KEY) ?: return
 
         val pending = goAsync()

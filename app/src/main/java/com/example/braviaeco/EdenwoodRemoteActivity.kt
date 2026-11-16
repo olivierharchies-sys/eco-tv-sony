@@ -15,7 +15,6 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import kotlin.concurrent.thread
 
 /**
  * Télécommande de la TV Edenwood (Android TV), en bleu pour la distinguer de la Sony (verte).
@@ -170,7 +169,7 @@ class EdenwoodRemoteActivity : Activity() {
         paintMute()
         // Ouvre la connexion d'avance : la première touche ne paie pas la poignée de main TLS.
         if (device.paired(this) && device.ip(this).isNotEmpty()) {
-            thread { AtvRemote.warmUp(this, device) }
+            Bg.run { AtvRemote.warmUp(this, device) }
         }
         if (CallPause.enabled(this)) CallPause.apply(this)
         if (KeepAwake.enabled(this)) KeepAwake.apply(this)

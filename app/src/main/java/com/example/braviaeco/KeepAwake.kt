@@ -18,7 +18,6 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.os.SystemClock
 import java.net.Inet4Address
-import kotlin.concurrent.thread
 
 /** Réglage « garder le décodeur éveillé tant que la TV est allumée ». */
 object KeepAwake {
@@ -139,7 +138,6 @@ class KeepAwakeReceiver : BroadcastReceiver() {
         val app = context.applicationContext
         if (!KeepAwake.enabled(app)) return
         schedule(app, INTERVAL_MS)
-        val pending = goAsync()
         val pm = app.getSystemService(Context.POWER_SERVICE) as PowerManager
         val cpu = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EcoTv:keepAwake")
         val wm = app.getSystemService(Context.WIFI_SERVICE) as? WifiManager
@@ -150,16 +148,13 @@ class KeepAwakeReceiver : BroadcastReceiver() {
         // Le passage le plus long (TV puis décodeur injoignables, avec nouvel essai) reste sous cette limite.
         cpu.acquire(WORK_LIMIT_MS + 15_000L)
         runCatching { wifi?.acquire() }
-        thread(isDaemon = true, name = "keep-awake") {
-            try {
-                ping(app)
-                // Écran éteint : on ferme la liaison, sinon les « ping » du décodeur réveillent le téléphone.
-                if (!pm.isInteractive) AtvRemote.disconnect(AtvDevice.DECODER)
-            } finally {
-                runCatching { if (wifi?.isHeld == true) wifi.release() }
-                runCatching { if (cpu.isHeld) cpu.release() }
-                pending.finish()
-            }
+        inBackground(after = {
+            runCatching { if (wifi?.isHeld == true) wifi.release() }
+            runCatching { if (cpu.isHeld) cpu.release() }
+        }) {
+            ping(app)
+            // Écran éteint : on ferme la liaison, sinon les « ping » du décodeur réveillent le téléphone.
+            if (!pm.isInteractive) AtvRemote.disconnect(AtvDevice.DECODER)
         }
     }
 

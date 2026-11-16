@@ -10,7 +10,6 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.RemoteViews
 import android.widget.Toast
-import kotlin.concurrent.thread
 
 class EcoWidgetProvider : AppWidgetProvider() {
 
@@ -45,15 +44,7 @@ class EcoWidgetProvider : AppWidgetProvider() {
     }
 
     private fun runInBackground(context: Context, work: () -> Unit) {
-        val pending = goAsync()
-        thread {
-            try {
-                work()
-            } finally {
-                refreshAll(context)
-                pending.finish()
-            }
-        }
+        inBackground(after = { refreshAll(context) }, work = work)
     }
 
     private fun toast(context: Context, text: String) {

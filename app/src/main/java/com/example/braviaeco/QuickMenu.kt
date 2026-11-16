@@ -2,7 +2,6 @@ package com.example.braviaeco
 
 import android.app.Activity
 import android.app.AlertDialog
-import kotlin.concurrent.thread
 
 /**
  * Bouton d'actions rapides de la télécommande : écran éteint (le son continue) et minuteur d'extinction.
@@ -31,7 +30,7 @@ class QuickMenu(private val act: Activity) {
     /** Mode « Image off » de la TV : l'écran s'éteint, le son et le décodeur continuent. */
     private fun togglePictureOff() {
         toast("Écran…")
-        thread {
+        Bg.run {
             val message = DesignActions.togglePictureOff(act)
             act.runOnUiThread {
                 toast(message)

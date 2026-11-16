@@ -14,6 +14,13 @@ Application Android qui pilote la TV en Wi-Fi local via l'API réseau Bravia de 
 - **Clavier** : ouvre le clavier du téléphone et envoie le texte tapé dans le champ actif de la TV.
 - **Chiffres** : ouvre un pavé numérique.
 
+## Nouveautés de la version 2.37 (refactoring, sans changement de fonctionnement)
+
+- Gros fichiers découpés : `AtvRemote.kt` (protocole) / `AtvPrefs.kt` / `AtvIdentity.kt` (clé et certificat) / `AtvTls.kt` (TLS et empreinte épinglée) / `Pb.kt` (protobuf) ; `BraviaClient.kt` / `Prefs.kt` / `TvModels.kt`.
+- Page des réglages : `MainActivity` ne garde que le formulaire ; chaque section est une carte (`WebCard`, `DeviceCard`, `EdenwoodCard`, `RoomCard`, `PictureCard`, `BackupCard`, base `SettingsCard`) ; association dans `PairingUi`, contenu de la sauvegarde dans `BackupStore`.
+- Fils d'exécution centralisés dans `Bg.kt` (pool partagé, `inBackground` pour les récepteurs) au lieu d'un fil neuf à chaque appui.
+- Textes de la page des réglages déplacés dans `strings.xml`.
+
 ## Nouveautés de la version 2.36
 
 - **Sécurité** : les boutons des widgets ne répondent plus qu'à cette appli (jeton secret par installation) ;

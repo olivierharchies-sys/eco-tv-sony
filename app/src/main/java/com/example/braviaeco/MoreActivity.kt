@@ -12,7 +12,6 @@ import android.widget.ListView
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
-import kotlin.concurrent.thread
 
 /** Toutes les autres possibilités de l'API Bravia : applications, touches, volume, mode éco, infos, redémarrage. */
 class MoreActivity : Activity() {
@@ -176,7 +175,7 @@ class MoreActivity : Activity() {
 
     /** Exécute [work] hors du thread principal puis [done] sur le thread principal. */
     private fun <T> bg(work: () -> T, done: (T) -> Unit) {
-        thread {
+        Bg.run {
             val value = work()
             runOnUiThread { if (!isFinishing) done(value) }
         }

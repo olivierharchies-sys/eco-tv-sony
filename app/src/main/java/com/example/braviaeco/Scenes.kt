@@ -14,7 +14,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import org.json.JSONArray
 import org.json.JSONObject
-import kotlin.concurrent.thread
 
 /** Scène : un nom et une suite d'étapes (allumer, source, mode éco, volume, application…). */
 data class Scene(val name: String, val steps: List<String>)
@@ -170,22 +169,17 @@ object SleepTimer {
 
 class SleepReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val pending = goAsync()
-        thread {
-            try {
-                val device = SleepTimer.device(context)
-                SleepTimer.clear(context)
-                if (device == Prefs.DEVICE_EDENWOOD) {
-                    // Touche « veille » : sans effet si la Edenwood est déjà éteinte (contrairement à Power).
-                    AtvRemote.sendKey(context, AtvRemote.keyCode("sleep") ?: 223, AtvDevice.EDENWOOD)
-                } else {
-                    BraviaClient.setPower(context, false)
-                }
-                PowerWidgetProvider.refreshAll(context)
-                SleepDesignWidget.refreshAll(context)
-            } finally {
-                pending.finish()
+        inBackground {
+            val device = SleepTimer.device(context)
+            SleepTimer.clear(context)
+            if (device == Prefs.DEVICE_EDENWOOD) {
+                // Touche « veille » : sans effet si la Edenwood est déjà éteinte (contrairement à Power).
+                AtvRemote.sendKey(context, AtvRemote.keyCode("sleep") ?: 223, AtvDevice.EDENWOOD)
+            } else {
+                BraviaClient.setPower(context, false)
             }
+            PowerWidgetProvider.refreshAll(context)
+            SleepDesignWidget.refreshAll(context)
         }
     }
 }
@@ -361,7 +355,7 @@ class SceneUi(private val act: Activity, private val actions: TvActions) {
     }
 
     private fun pickSource(onPick: (String) -> Unit) {
-        thread {
+        Bg.run {
             val inputs = BraviaClient.getInputs(act).getOrNull()?.takeIf { it.isNotEmpty() }
                 ?: (1..4).map { TvInput("extInput:hdmi?port=$it", "HDMI $it", "", true) }
             act.runOnUiThread {

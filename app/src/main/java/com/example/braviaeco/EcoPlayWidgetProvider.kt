@@ -6,7 +6,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
-import kotlin.concurrent.thread
 
 /** Widget « Éco + lecture » : les 4 modes d'économie d'énergie, et Lecture / Pause. */
 class EcoPlayWidgetProvider : AppWidgetProvider() {
@@ -22,24 +21,19 @@ class EcoPlayWidgetProvider : AppWidgetProvider() {
         if (!WidgetIntents.authorized(context, intent)) return
         val value = intent.getStringExtra(EXTRA_VALUE) ?: return
 
-        val pending = goAsync()
-        thread {
-            try {
-                if (action == ACTION_MODE) {
-                    val mode = EcoMode.fromApi(value) ?: return@thread
-                    val result = BraviaClient.setMode(context, mode)
-                    Ui.toast(context, result.fold({ "TV : éco ${mode.label}" }, { it.message ?: "Échec" }))
-                    // Met aussi à jour le widget des modes (qui relaie vers celui-ci).
-                    EcoWidgetProvider.refreshAll(context)
-                } else {
-                    // Lecture / Pause : vers l'appareil visé par la télécommande (TV ou décodeur).
-                    val result =
-                        if (Prefs.target(context) == Target.DECODER) Decoder.sendKey(context, value)
-                        else BraviaClient.sendIrcc(context, value)
-                    result.exceptionOrNull()?.let { Ui.toast(context, it.message ?: "Échec") }
-                }
-            } finally {
-                pending.finish()
+        inBackground {
+            if (action == ACTION_MODE) {
+                val mode = EcoMode.fromApi(value) ?: return@inBackground
+                val result = BraviaClient.setMode(context, mode)
+                Ui.toast(context, result.fold({ "TV : éco ${mode.label}" }, { it.message ?: "Échec" }))
+                // Met aussi à jour le widget des modes (qui relaie vers celui-ci).
+                EcoWidgetProvider.refreshAll(context)
+            } else {
+                // Lecture / Pause : vers l'appareil visé par la télécommande (TV ou décodeur).
+                val result =
+                    if (Prefs.target(context) == Target.DECODER) Decoder.sendKey(context, value)
+                    else BraviaClient.sendIrcc(context, value)
+                result.exceptionOrNull()?.let { Ui.toast(context, it.message ?: "Échec") }
             }
         }
     }

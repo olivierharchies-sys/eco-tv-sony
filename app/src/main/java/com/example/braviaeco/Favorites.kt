@@ -16,7 +16,6 @@ import android.widget.LinearLayout
 import android.widget.RemoteViews
 import org.json.JSONArray
 import org.json.JSONObject
-import kotlin.concurrent.thread
 
 /** Chaîne favorite du décodeur : un nom et son numéro. */
 data class Channel(val name: String, val number: Int)
@@ -147,14 +146,9 @@ abstract class SlotWidgetProvider : AppWidgetProvider() {
         val index = intent.getIntExtra(EXTRA_INDEX, -1)
         if (index < 0) return
 
-        val pending = goAsync()
-        thread {
-            try {
-                val result = perform(context, index)
-                result.exceptionOrNull()?.let { Ui.toast(context, it.message ?: "Échec") }
-            } finally {
-                pending.finish()
-            }
+        inBackground {
+            val result = perform(context, index)
+            result.exceptionOrNull()?.let { Ui.toast(context, it.message ?: "Échec") }
         }
     }
 

@@ -7,7 +7,6 @@ import android.content.Intent
 import android.widget.EditText
 import android.widget.ScrollView
 import android.widget.TextView
-import kotlin.concurrent.thread
 
 /**
  * Bouton « image » de la télécommande : emplacements d'image mémorisés (Jour, Nuit, Jeu…)
@@ -67,7 +66,7 @@ class PictureMenu(private val act: Activity) {
             return
         }
         toast("Image : $name…")
-        thread {
+        Bg.run {
             val result = Picture.applyValues(act, values)
             act.runOnUiThread {
                 if (result.isSuccess) {
@@ -103,7 +102,7 @@ class PictureMenu(private val act: Activity) {
             return
         }
         toast("Lecture des réglages de la TV…")
-        thread {
+        Bg.run {
             val captured = Picture.capture(act)
             val input = if (captured.isSuccess) Picture.currentInput(act) else null
             act.runOnUiThread {
@@ -151,7 +150,7 @@ class PictureMenu(private val act: Activity) {
 
     private fun applyKind(kind: Picture.Kind) {
         toast("Réglage de l'image : ${kind.label}…")
-        thread {
+        Bg.run {
             val result = Picture.adapt(act, kind)
             act.runOnUiThread {
                 val body = result.getOrNull()

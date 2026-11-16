@@ -10,7 +10,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
-import kotlin.concurrent.thread
 
 /**
  * Tous les réglages d'image que la TV expose par l'API : plage numérique = curseur,
@@ -61,7 +60,7 @@ class PictureSettingsActivity : Activity() {
 
     private fun load() {
         info.text = "Lecture des réglages de la TV…"
-        thread {
+        Bg.run {
             val result = Picture.items(this)
             runOnUiThread { show(result) }
         }
@@ -146,14 +145,14 @@ class PictureSettingsActivity : Activity() {
     }
 
     private fun apply(target: String, value: String, reloadAfter: Boolean) {
-        thread {
+        Bg.run {
             val result = Picture.setOne(this, target, value)
             runOnUiThread {
                 val failure = result.exceptionOrNull()
                 if (failure != null) {
                     val msg = failure.message.orEmpty()
                     Ui.toast(this, "« ${Picture.labelOf(target)} » refusé par la TV : $msg")
-                    thread {
+                    Bg.run {
                         val text = Picture.diagnose(this, target, value, msg)
                         runOnUiThread {
                             if (isFinishing) return@runOnUiThread

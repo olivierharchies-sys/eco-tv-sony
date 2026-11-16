@@ -1,8 +1,6 @@
 package com.example.braviaeco
 
 import android.content.Context
-import android.util.Base64
-import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.EOFException
 import java.io.IOException
@@ -10,212 +8,13 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.math.BigInteger
 import java.net.InetSocketAddress
-import java.net.Socket
-import java.security.KeyFactory
-import java.security.KeyPair
-import java.security.KeyPairGenerator
 import java.security.MessageDigest
-import java.security.Principal
-import java.security.PrivateKey
-import java.security.Signature
-import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.security.interfaces.RSAPublicKey
-import java.security.spec.PKCS8EncodedKeySpec
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.KeyManager
-import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLEngine
 import javax.net.ssl.SSLException
 import javax.net.ssl.SSLSocket
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509ExtendedKeyManager
-import javax.net.ssl.X509TrustManager
-import javax.security.auth.x500.X500Principal
-import kotlin.concurrent.thread
-
-private const val ATV_ALIAS = "eco_tv_atvremote"
-
-/** Réglages du décodeur Android TV piloté en Wi-Fi direct. */
-object AtvPrefs {
-    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
-
-    fun ip(ctx: Context): String = sp(ctx).getString("atv_ip", "") ?: ""
-    fun paired(ctx: Context): Boolean = sp(ctx).getBoolean("atv_paired", false)
-
-    fun saveIp(ctx: Context, ip: String) {
-        sp(ctx).edit().putString("atv_ip", ip.trim()).apply()
-    }
-
-    fun savePaired(ctx: Context, paired: Boolean) {
-        AtvDevice.DECODER.savePaired(ctx, paired)
-    }
-}
-
-/** Réglages de la TV Edenwood (Android TV) pilotée en Wi-Fi. */
-object EdenwoodPrefs {
-    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
-
-    fun ip(ctx: Context): String = sp(ctx).getString("edenwood_ip", "") ?: ""
-
-    fun saveIp(ctx: Context, ip: String) {
-        sp(ctx).edit().putString("edenwood_ip", ip.trim()).apply()
-    }
-
-    /** Adresse MAC (AA:BB:CC:DD:EE:FF) pour le réveil réseau ; vide si inconnue. */
-    fun mac(ctx: Context): String = sp(ctx).getString("edenwood_mac", "") ?: ""
-
-    fun saveMac(ctx: Context, mac: String) {
-        sp(ctx).edit().putString("edenwood_mac", mac).apply()
-    }
-}
-
-/** Appareil Android TV piloté : le décodeur, la TV Sony (clavier de ses applications) ou la TV Edenwood. */
-enum class AtvDevice(val label: String, private val pairedKey: String) {
-    DECODER("Décodeur", "atv_paired"),
-    TV("TV", "atv_tv_paired"),
-    EDENWOOD("Edenwood", "atv_edenwood_paired");
-
-    private fun sp(ctx: Context) = AppPrefs.sp(ctx)
-
-    fun ip(ctx: Context): String = when (this) {
-        TV -> Prefs.ip(ctx)
-        DECODER -> AtvPrefs.ip(ctx)
-        EDENWOOD -> EdenwoodPrefs.ip(ctx)
-    }
-    fun paired(ctx: Context): Boolean = sp(ctx).getBoolean(pairedKey, false)
-
-    /**
-     * Enregistre l'état d'association. Dans les deux cas l'empreinte du certificat de l'appareil est
-     * oubliée : elle est relue à la première connexion qui suit une (nouvelle) association.
-     */
-    fun savePaired(ctx: Context, paired: Boolean) {
-        sp(ctx).edit().putBoolean(pairedKey, paired).remove(pinKey).apply()
-    }
-
-    private val pinKey: String get() = "atv_pin_" + name.lowercase()
-
-    /** Empreinte SHA-256 (hex) du certificat de l'appareil, vue lors de la première connexion ; vide si inconnue. */
-    fun pin(ctx: Context): String = sp(ctx).getString(pinKey, "") ?: ""
-
-    fun savePin(ctx: Context, fingerprint: String) {
-        sp(ctx).edit().putString(pinKey, fingerprint).apply()
-    }
-}
-
-/** Encodeur / décodeur protobuf minimal (entiers et champs de longueur variable). */
-internal class Pb {
-    private val out = ByteArrayOutputStream()
-
-    private fun raw(value: Long) {
-        var v = value
-        while (true) {
-            val b = (v and 0x7FL).toInt()
-            v = v ushr 7
-            if (v == 0L) {
-                out.write(b)
-                return
-            }
-            out.write(b or 0x80)
-        }
-    }
-
-    fun int(field: Int, value: Int): Pb {
-        raw((field shl 3).toLong())
-        raw(value.toLong())
-        return this
-    }
-
-    fun bytes(field: Int, value: ByteArray): Pb {
-        raw(((field shl 3) or 2).toLong())
-        raw(value.size.toLong())
-        out.write(value, 0, value.size)
-        return this
-    }
-
-    fun str(field: Int, value: String): Pb = bytes(field, value.toByteArray(Charsets.UTF_8))
-
-    fun msg(field: Int, value: Pb): Pb = bytes(field, value.toByteArray())
-
-    fun toByteArray(): ByteArray = out.toByteArray()
-
-    companion object {
-        /** Champ → dernière valeur lue : Long (entier) ou ByteArray (texte, sous-message). */
-        fun parse(data: ByteArray): Map<Int, Any> {
-            val map = HashMap<Int, Any>()
-            var pos = 0
-            while (pos < data.size) {
-                var tag = 0L
-                var shift = 0
-                while (true) {
-                    if (pos >= data.size) throw IOException("Message tronqué")
-                    val b = data[pos].toInt() and 0xFF
-                    pos++
-                    tag = tag or ((b and 0x7F).toLong() shl shift)
-                    if ((b and 0x80) == 0) break
-                    shift += 7
-                    if (shift > 63) throw IOException("Message illisible")
-                }
-                val field = (tag ushr 3).toInt()
-                when ((tag and 7L).toInt()) {
-                    0 -> {
-                        var value = 0L
-                        var s = 0
-                        while (true) {
-                            if (pos >= data.size) throw IOException("Message tronqué")
-                            val b = data[pos].toInt() and 0xFF
-                            pos++
-                            value = value or ((b and 0x7F).toLong() shl s)
-                            if ((b and 0x80) == 0) break
-                            s += 7
-                            if (s > 63) throw IOException("Message illisible")
-                        }
-                        map[field] = value
-                    }
-                    1 -> pos += 8
-                    2 -> {
-                        var len = 0
-                        var s = 0
-                        while (true) {
-                            if (pos >= data.size) throw IOException("Message tronqué")
-                            val b = data[pos].toInt() and 0xFF
-                            pos++
-                            len = len or ((b and 0x7F) shl s)
-                            if ((b and 0x80) == 0) break
-                            s += 7
-                            if (s > 28) throw IOException("Message illisible")
-                        }
-                        if (len < 0 || pos + len > data.size) throw IOException("Message tronqué")
-                        map[field] = data.copyOfRange(pos, pos + len)
-                        pos += len
-                    }
-                    5 -> pos += 4
-                    else -> throw IOException("Message illisible")
-                }
-            }
-            return map
-        }
-    }
-}
-
-/** Présente toujours notre certificat au décodeur. */
-private class AtvKeyManager(
-    private val key: PrivateKey,
-    private val cert: X509Certificate
-) : X509ExtendedKeyManager() {
-    override fun chooseClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, socket: Socket?): String? = ATV_ALIAS
-    override fun chooseEngineClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, engine: SSLEngine?): String? = ATV_ALIAS
-    override fun getClientAliases(keyType: String?, issuers: Array<out Principal>?): Array<String>? = arrayOf(ATV_ALIAS)
-    override fun getCertificateChain(alias: String?): Array<X509Certificate>? = arrayOf(cert)
-    override fun getPrivateKey(alias: String?): PrivateKey? = key
-    override fun getServerAliases(keyType: String?, issuers: Array<out Principal>?): Array<String>? = null
-    override fun chooseServerAlias(keyType: String?, issuers: Array<out Principal>?, socket: Socket?): String? = null
-}
 
 /**
  * Télécommande Android TV « v2 » (celle de l'appli Google TV) : pilote le décodeur directement
@@ -228,9 +27,6 @@ object AtvRemote {
     private const val REMOTE_PORT = 6466
     private const val FEATURES = 622
     private const val STALE_MS = 15000L
-
-    /** Protège la création / le chargement de la clé et du certificat. */
-    private val identityLock = Any()
 
     /** Taille maximale acceptée pour un message de l'appareil (les vrais messages font quelques centaines d'octets). */
     private const val MAX_FRAME = 256 * 1024
@@ -293,9 +89,6 @@ object AtvRemote {
 
     private fun deviceOf(l: Link): AtvDevice? = links.entries.firstOrNull { it.value === l }?.key
 
-    /** Contexte TLS par appareil : chacun vérifie l'empreinte du certificat de son propre appareil. */
-    private val contexts = java.util.concurrent.ConcurrentHashMap<AtvDevice, SSLContext>()
-
     private val KEYS: Map<String, Int> = mapOf(
         "up" to 19, "down" to 20, "left" to 21, "right" to 22, "confirm" to 23, "enter" to 66,
         "return" to 4, "back" to 4, "home" to 3, "options" to 82,
@@ -313,184 +106,10 @@ object AtvRemote {
     /** Code Android de la touche portant ce nom (noms de la télécommande Sony), ou null. */
     fun keyCode(name: String): Int? = KEYS[name.lowercase()]
 
-    // ---------------------------------------------------------------- certificat et TLS
-
-    private class Identity(val key: PrivateKey, val cert: X509Certificate)
-
-    @Volatile
-    private var identity: Identity? = null
-
-    /** Encode un élément DER : étiquette, longueur, contenu. */
-    private fun der(tag: Int, vararg parts: ByteArray): ByteArray {
-        val body = ByteArrayOutputStream()
-        for (part in parts) body.write(part, 0, part.size)
-        val content = body.toByteArray()
-        val out = ByteArrayOutputStream()
-        out.write(tag)
-        val n = content.size
-        if (n < 0x80) {
-            out.write(n)
-        } else if (n < 0x100) {
-            out.write(0x81)
-            out.write(n)
-        } else {
-            out.write(0x82)
-            out.write(n ushr 8)
-            out.write(n and 0xFF)
-        }
-        out.write(content, 0, content.size)
-        return out.toByteArray()
-    }
-
-    /**
-     * Date X.509 : UTCTime (2 chiffres pour l'année) jusqu'en 2049, GeneralizedTime au-delà.
-     * Sans cela, une date en 2050 serait lue comme 1950 et le certificat serait aussitôt expiré.
-     */
-    private fun derTime(millis: Long): ByteArray {
-        val utc = TimeZone.getTimeZone("UTC")
-        val year = java.util.Calendar.getInstance(utc).apply { timeInMillis = millis }.get(java.util.Calendar.YEAR)
-        val general = year >= 2050
-        val format = SimpleDateFormat(if (general) "yyyyMMddHHmmss'Z'" else "yyMMddHHmmss'Z'", Locale.US)
-        format.timeZone = utc
-        return der(if (general) 0x18 else 0x17, format.format(Date(millis)).toByteArray(Charsets.US_ASCII))
-    }
-
-    /** Certificat X.509 auto-signé (CN=atvremote, RSA, SHA-256) construit à la main. */
-    private fun selfSigned(pair: KeyPair): ByteArray {
-        val now = System.currentTimeMillis()
-        // sha256WithRSAEncryption
-        val algorithm = byteArrayOf(
-            0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86.toByte(), 0x48, 0x86.toByte(), 0xF7.toByte(),
-            0x0D, 0x01, 0x01, 0x0B, 0x05, 0x00
-        )
-        val name = X500Principal("CN=atvremote").encoded
-        val tbs = der(
-            0x30,
-            der(0xA0, der(0x02, byteArrayOf(2))),
-            der(0x02, BigInteger.valueOf(now).toByteArray()),
-            algorithm,
-            name,
-            der(0x30, derTime(now - 86_400_000L), derTime(now + 20L * 365L * 86_400_000L)),
-            name,
-            pair.public.encoded
-        )
-        val signer = Signature.getInstance("SHA256withRSA")
-        signer.initSign(pair.private)
-        signer.update(tbs)
-        return der(0x30, tbs, algorithm, der(0x03, byteArrayOf(0), signer.sign()))
-    }
-
-    /**
-     * Clé et certificat présentés au décodeur, créés une fois puis gardés dans les réglages de l'appli
-     * (clé logicielle : aucune restriction du coffre Android pendant la poignée de main TLS).
-     */
-    private fun identity(ctx: Context): Identity {
-        identity?.let { return it }
-        synchronized(identityLock) {
-            identity?.let { return it }
-            val sp = AppPrefs.sp(ctx)
-            val factory = CertificateFactory.getInstance("X.509")
-            val savedKey = sp.getString("atv_key", null)
-            val savedCert = sp.getString("atv_cert", null)
-            if (savedKey != null && savedCert != null) {
-                val loaded = runCatching {
-                    val key = KeyFactory.getInstance("RSA")
-                        .generatePrivate(PKCS8EncodedKeySpec(Base64.decode(savedKey, Base64.NO_WRAP)))
-                    val cert = factory.generateCertificate(
-                        ByteArrayInputStream(Base64.decode(savedCert, Base64.NO_WRAP))
-                    ) as X509Certificate
-                    Identity(key, cert)
-                }.getOrNull()
-                if (loaded != null) {
-                    identity = loaded
-                    return loaded
-                }
-            }
-            val generator = KeyPairGenerator.getInstance("RSA")
-            generator.initialize(2048)
-            val pair = generator.generateKeyPair()
-            val certBytes = selfSigned(pair)
-            val cert = factory.generateCertificate(ByteArrayInputStream(certBytes)) as X509Certificate
-            sp.edit()
-                .putString("atv_key", Base64.encodeToString(pair.private.encoded, Base64.NO_WRAP))
-                .putString("atv_cert", Base64.encodeToString(certBytes, Base64.NO_WRAP))
-                .putBoolean("atv_paired", false)
-                .putBoolean("atv_tv_paired", false)
-                .putBoolean("atv_edenwood_paired", false)
-                .apply()
-            val created = Identity(pair.private, cert)
-            identity = created
-            return created
-        }
-    }
-
-    /**
-     * Oublie la clé, le certificat et les connexions gardés en mémoire. À appeler après une restauration
-     * de sauvegarde : sinon l'appli continuerait à présenter l'ancienne identité tant qu'elle n'est pas relancée.
-     * À appeler hors du thread principal (ferme des connexions réseau).
-     */
-    fun reset() {
-        synchronized(identityLock) {
-            identity = null
-            contexts.clear()
-        }
-        for (device in AtvDevice.values()) disconnect(device)
-    }
-
-    private fun fingerprint(cert: X509Certificate): String =
-        MessageDigest.getInstance("SHA-256").digest(cert.encoded).joinToString("") { "%02x".format(it) }
-
-    /**
-     * Vérifie le certificat de l'appareil. Un appareil Android TV présente un certificat auto-signé, qui ne
-     * peut pas être validé par une autorité : on l'épingle donc. Le code à 6 caractères de l'association a
-     * authentifié l'appareil ; la première connexion qui suit mémorise l'empreinte de son certificat, et toute
-     * connexion ultérieure doit présenter le même. Pendant l'association elle-même ([enforce] = false), rien
-     * n'est vérifié ici : c'est le code saisi (qui contient la clé de l'appareil) qui fait foi.
-     */
-    private class PinningTrustManager(
-        private val app: Context,
-        private val device: AtvDevice,
-        private val enforce: Boolean
-    ) : X509TrustManager {
-        override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-
-        override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-            if (!enforce) return
-            val leaf = chain?.firstOrNull() ?: throw java.security.cert.CertificateException("Certificat absent")
-            val seen = fingerprint(leaf)
-            synchronized(PIN_LOCK) {
-                val pinned = device.pin(app)
-                if (pinned.isEmpty()) {
-                    device.savePin(app, seen)
-                } else if (!pinned.equals(seen, ignoreCase = true)) {
-                    throw java.security.cert.CertificateException(
-                        "le certificat de ${device.label} a changé : refais l'association"
-                    )
-                }
-            }
-        }
-
-        override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-    }
-
-    private val PIN_LOCK = Any()
-
-    private fun sslContext(ctx: Context, device: AtvDevice, enforce: Boolean): SSLContext {
-        if (enforce) contexts[device]?.let { return it }
-        val app = ctx.applicationContext ?: ctx
-        val id = identity(app)
-        val context = SSLContext.getInstance("TLS")
-        context.init(
-            arrayOf<KeyManager>(AtvKeyManager(id.key, id.cert)),
-            arrayOf<TrustManager>(PinningTrustManager(app, device, enforce)),
-            null
-        )
-        if (enforce) contexts[device] = context
-        return context
-    }
+    // ---------------------------------------------------------------- connexion TLS
 
     private fun open(ctx: Context, device: AtvDevice, ip: String, port: Int, readTimeoutMs: Int, enforce: Boolean = true): SSLSocket {
-        val s = sslContext(ctx, device, enforce).socketFactory.createSocket() as SSLSocket
+        val s = AtvTls.context(ctx, device, enforce).socketFactory.createSocket() as SSLSocket
         try {
             s.connect(InetSocketAddress(ip, port), 3000)
             s.soTimeout = 8000
@@ -625,7 +244,7 @@ object AtvRemote {
         val result = runCatching {
             val ip = device.ip(ctx)
             if (ip.isEmpty()) error("Adresse IP non configurée (${device.label})")
-            val cert = identity(ctx).cert
+            val cert = AtvIdentity.get(ctx).cert
             // Pas d'épinglage ici : c'est le code saisi qui authentifie l'appareil ; l'empreinte de son
             // certificat est mémorisée à la première connexion de télécommande qui suit.
             val s = open(ctx, device, ip, PAIRING_PORT, 60000, enforce = false)
@@ -649,6 +268,16 @@ object AtvRemote {
     }
 
     // ---------------------------------------------------------------- télécommande
+
+    /**
+     * Oublie la clé, le certificat et les connexions gardés en mémoire. À appeler après une restauration
+     * de sauvegarde : sinon l'appli continuerait à présenter l'ancienne identité tant qu'elle n'est pas relancée.
+     * À appeler hors du thread principal (ferme des connexions réseau).
+     */
+    fun reset() {
+        AtvTls.reset()
+        for (device in AtvDevice.values()) disconnect(device)
+    }
 
     /**
      * Ferme la connexion à l'appareil. Volontairement sans verrou : si un envoi est bloqué sur une connexion
@@ -689,7 +318,7 @@ object AtvRemote {
         l.hasField = false
         val ready = CountDownLatch(1)
         l.lastSeen = System.currentTimeMillis()
-        thread(isDaemon = true, name = "atv-remote") { readLoop(s, ready, l) }
+        Bg.run { readLoop(s, ready, l) }
         ready.await(4, TimeUnit.SECONDS)
         if (s.isClosed) throw IOException("L'appareil a fermé la connexion")
         l.socket = s

@@ -9,7 +9,6 @@ import android.widget.RemoteViews
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.concurrent.thread
 
 /** Actions communes aux widgets « design » : envoi d'une touche, écran éteint. */
 object DesignActions {
@@ -75,14 +74,8 @@ abstract class DesignWidget : AppWidgetProvider() {
         if (intent.action != action()) return
         if (!WidgetIntents.authorized(context, intent)) return
         val cmd = intent.getStringExtra(EXTRA_CMD) ?: return
-        val pending = goAsync()
-        thread {
-            try {
-                run(context, cmd)?.let { Ui.toast(context, it) }
-            } finally {
-                refreshAfter(context)
-                pending.finish()
-            }
+        inBackground(after = { refreshAfter(context) }) {
+            run(context, cmd)?.let { Ui.toast(context, it) }
         }
     }
 

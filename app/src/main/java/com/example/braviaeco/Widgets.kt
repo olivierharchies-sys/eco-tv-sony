@@ -7,7 +7,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
-import kotlin.concurrent.thread
 
 /** Fabriques de PendingIntent communes aux widgets. */
 object WidgetIntents {
@@ -76,15 +75,9 @@ class PowerWidgetProvider : AppWidgetProvider() {
         if (intent.action != ACTION_TOGGLE) return
         if (!WidgetIntents.authorized(context, intent)) return
 
-        val pending = goAsync()
-        thread {
-            try {
-                val result = BraviaClient.togglePower(context)
-                result.exceptionOrNull()?.let { Ui.toast(context, it.message ?: "Échec") }
-            } finally {
-                refreshAll(context)
-                pending.finish()
-            }
+        inBackground(after = { refreshAll(context) }) {
+            val result = BraviaClient.togglePower(context)
+            result.exceptionOrNull()?.let { Ui.toast(context, it.message ?: "Échec") }
         }
     }
 
@@ -167,14 +160,9 @@ class MiniRemoteWidgetProvider : AppWidgetProvider() {
         if (!WidgetIntents.authorized(context, intent)) return
         val key = intent.getStringExtra(EXTRA_KEY) ?: return
 
-        val pending = goAsync()
-        thread {
-            try {
-                val result = BraviaClient.sendIrcc(context, key)
-                result.exceptionOrNull()?.let { Ui.toast(context, it.message ?: "Échec") }
-            } finally {
-                pending.finish()
-            }
+        inBackground {
+            val result = BraviaClient.sendIrcc(context, key)
+            result.exceptionOrNull()?.let { Ui.toast(context, it.message ?: "Échec") }
         }
     }
 
@@ -217,21 +205,16 @@ class RemoteWidgetProvider : AppWidgetProvider() {
         if (!WidgetIntents.authorized(context, intent)) return
         val key = intent.getStringExtra(EXTRA_KEY) ?: return
 
-        val pending = goAsync()
-        thread {
-            try {
-                val result: Result<*> = when (key) {
-                    KEY_POWER -> BraviaClient.togglePower(context).also {
-                        if (it.isSuccess) PowerWidgetProvider.refreshAll(context)
-                    }
-                    KEY_DEVICE_HOME -> Decoder.home(context)
-                    KEY_WEB -> BraviaClient.openWeb(context)
-                    else -> BraviaClient.sendIrcc(context, key)
+        inBackground {
+            val result: Result<*> = when (key) {
+                KEY_POWER -> BraviaClient.togglePower(context).also {
+                    if (it.isSuccess) PowerWidgetProvider.refreshAll(context)
                 }
-                result.exceptionOrNull()?.let { Ui.toast(context, it.message ?: "Échec") }
-            } finally {
-                pending.finish()
+                KEY_DEVICE_HOME -> Decoder.home(context)
+                KEY_WEB -> BraviaClient.openWeb(context)
+                else -> BraviaClient.sendIrcc(context, key)
             }
+            result.exceptionOrNull()?.let { Ui.toast(context, it.message ?: "Échec") }
         }
     }
 

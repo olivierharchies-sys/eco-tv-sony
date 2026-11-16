@@ -4,7 +4,6 @@ import android.os.Handler
 import android.os.Looper
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
-import kotlin.concurrent.thread
 
 /** Tuile « Réglages rapides » : marche / arrêt de la TV. */
 class PowerTileService : TileService() {
@@ -15,7 +14,7 @@ class PowerTileService : TileService() {
 
     override fun onClick() {
         val ctx = applicationContext
-        thread {
+        Bg.run {
             val result = BraviaClient.togglePower(ctx)
             result.exceptionOrNull()?.let { Ui.toast(ctx, it.message ?: "Échec") }
             PowerWidgetProvider.refreshAll(ctx)
@@ -45,7 +44,7 @@ class MuteTileService : TileService() {
 
     override fun onClick() {
         val ctx = applicationContext
-        thread {
+        Bg.run {
             val result = BraviaClient.sendIrcc(ctx, "Mute")
             result.exceptionOrNull()?.let { Ui.toast(ctx, it.message ?: "Échec") }
         }

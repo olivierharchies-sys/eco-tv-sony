@@ -11,6 +11,7 @@ import android.widget.BaseAdapter
 import android.widget.ImageView
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.GridView
 import android.widget.LinearLayout
 import android.widget.TextView
 import org.json.JSONArray
@@ -120,13 +121,9 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
             pickTvApps()
             return
         }
-        val rows = apps.map { IconRow(it.title, "", it.uri) } + IconRow("✎  Choisir les applications…", "", "")
-        showIconList("Applications de la TV", rows) { which ->
-            if (which == apps.size) {
-                pickTvApps()
-            } else {
-                launchTvApp(apps[which])
-            }
+        val rows = apps.map { IconRow(it.title, "", it.uri) }
+        showIconList("Applications de la TV", rows, neutral = "✎ Choisir" to { pickTvApps() }) { which ->
+            launchTvApp(apps[which])
         }
     }
 
@@ -230,8 +227,15 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
             Ui.toast(act, "Historique vide : il se remplit au fil des lancements")
             return
         }
-        val rows = all.map { IconRow(it.title, whenText(it.time), if (it.kind == "app") it.ref else "") }
-        showIconList("Historique", rows, neutral = "Effacer" to { History.clear(act) }) { which ->
+        val rows = all.map {
+            val icon = when (it.kind) {
+                "app" -> it.ref
+                "decoder" -> AppIcons.decoderKey(it.title, it.keys)
+                else -> ""
+            }
+            IconRow(it.title, whenText(it.time), icon)
+        }
+        showIconList("Historique", rows, neutral = "Effacer" to { History.clear(act) }, grid = false) { which ->
             val e = all[which]
             History.add(act, e.copy(time = System.currentTimeMillis()))
             when (e.kind) {
@@ -255,49 +259,117 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
         title: String,
         rows: List<IconRow>,
         neutral: Pair<String, () -> Unit>? = null,
+        grid: Boolean = true,
         onPick: (Int) -> Unit
     ) {
         val adapter = object : BaseAdapter() {
             override fun getCount() = rows.size
             override fun getItem(position: Int) = rows[position]
             override fun getItemId(position: Int) = position.toLong()
-            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val row = rows[position]
-                val line = LinearLayout(act)
-                line.orientation = LinearLayout.HORIZONTAL
-                line.gravity = android.view.Gravity.CENTER_VERTICAL
-                val pad = Ui.dp(act, 16)
-                line.setPadding(pad, Ui.dp(act, 8), pad, Ui.dp(act, 8))
-
-                val size = Ui.dp(act, 40)
-                val image = ImageView(act)
-                image.scaleType = ImageView.ScaleType.FIT_CENTER
-                val bmp = if (row.iconUri.isEmpty()) null else AppIcons.bitmap(act, row.iconUri)
-                if (bmp != null) image.setImageBitmap(bmp)
-                line.addView(image, LinearLayout.LayoutParams(size, size).also { it.rightMargin = Ui.dp(act, 14) })
-
-                val texts = LinearLayout(act)
-                texts.orientation = LinearLayout.VERTICAL
-                val label = TextView(act)
-                label.text = row.label
-                label.setTextColor(Ui.TEXT)
-                label.textSize = 16f
-                texts.addView(label)
-                if (row.sub.isNotEmpty()) {
-                    val sub = TextView(act)
-                    sub.text = row.sub
-                    sub.setTextColor(Ui.DIM)
-                    sub.textSize = 12f
-                    texts.addView(sub)
-                }
-                line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                return line
-            }
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
+                if (grid) tile(rows[position]) else line(rows[position])
         }
-        val builder = dialog().setTitle(title).setAdapter(adapter) { _, which -> onPick(which) }
-        if (neutral != null) builder.setNeutralButton(neutral.first) { _, _ -> neutral.second() }
-        builder.show()
+        if (!grid) {
+            val builder = dialog().setTitle(title).setAdapter(adapter) { _, which -> onPick(which) }
+            if (neutral != null) builder.setNeutralButton(neutral.first) { _, _ -> neutral.second() }
+            builder.show()
+        } else {
+            val view = GridView(act)
+            view.numColumns = 3
+            view.stretchMode = GridView.STRETCH_COLUMN_WIDTH
+            view.verticalSpacing = Ui.dp(act, 10)
+            view.horizontalSpacing = Ui.dp(act, 10)
+            view.selector = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+            val pad = Ui.dp(act, 14)
+            view.setPadding(pad, pad, pad, pad)
+            view.clipToPadding = false
+            view.adapter = adapter
+            val builder = dialog().setTitle(title).setView(view).setNegativeButton("Fermer", null)
+            if (neutral != null) builder.setNeutralButton(neutral.first) { _, _ -> neutral.second() }
+            val dlg = builder.create()
+            view.setOnItemClickListener { _, _, pos, _ ->
+                dlg.dismiss()
+                onPick(pos)
+            }
+            dlg.show()
+        }
         AppIcons.prepare(act, rows.map { it.iconUri }) { if (!act.isFinishing) adapter.notifyDataSetChanged() }
+    }
+
+    /** Icône de la ligne, sinon pastille colorée avec l'initiale. */
+    private fun iconView(row: IconRow, sizeDp: Int): View {
+        val size = Ui.dp(act, sizeDp)
+        val bmp = if (row.iconUri.isEmpty()) null else AppIcons.bitmap(act, row.iconUri)
+        if (bmp != null) {
+            val image = ImageView(act)
+            image.scaleType = ImageView.ScaleType.FIT_CENTER
+            image.setImageBitmap(bmp)
+            image.layoutParams = LinearLayout.LayoutParams(size, size)
+            return image
+        }
+        val letter = TextView(act)
+        val clean = row.label.trim()
+        letter.text = clean.take(1).uppercase().ifEmpty { "?" }
+        letter.setTextColor(android.graphics.Color.WHITE)
+        letter.textSize = sizeDp * 0.42f
+        letter.gravity = android.view.Gravity.CENTER
+        letter.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        val hue = ((clean.lowercase().hashCode() and 0x7fffffff) % 360).toFloat()
+        val bg = android.graphics.drawable.GradientDrawable()
+        bg.setColor(android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.55f, 0.62f)))
+        bg.cornerRadius = size * 0.24f * Ui.ROUND
+        letter.background = bg
+        letter.layoutParams = LinearLayout.LayoutParams(size, size)
+        return letter
+    }
+
+    /** Tuile de grille : icône au-dessus du nom. */
+    private fun tile(row: IconRow): View {
+        val box = LinearLayout(act)
+        box.orientation = LinearLayout.VERTICAL
+        box.gravity = android.view.Gravity.CENTER_HORIZONTAL
+        val pad = Ui.dp(act, 8)
+        box.setPadding(pad, Ui.dp(act, 12), pad, Ui.dp(act, 10))
+        box.background = Ui.rounded(act, Ui.SURFACE_HI, 16)
+        box.addView(iconView(row, 52))
+        val label = TextView(act)
+        label.text = row.label
+        label.setTextColor(Ui.TEXT)
+        label.textSize = 13f
+        label.gravity = android.view.Gravity.CENTER
+        label.maxLines = 2
+        label.ellipsize = android.text.TextUtils.TruncateAt.END
+        label.setPadding(0, Ui.dp(act, 6), 0, 0)
+        box.addView(label)
+        return box
+    }
+
+    /** Ligne de liste : icône, nom, sous-titre. */
+    private fun line(row: IconRow): View {
+        val line = LinearLayout(act)
+        line.orientation = LinearLayout.HORIZONTAL
+        line.gravity = android.view.Gravity.CENTER_VERTICAL
+        val pad = Ui.dp(act, 16)
+        line.setPadding(pad, Ui.dp(act, 8), pad, Ui.dp(act, 8))
+        val icon = iconView(row, 40)
+        (icon.layoutParams as LinearLayout.LayoutParams).rightMargin = Ui.dp(act, 14)
+        line.addView(icon)
+        val texts = LinearLayout(act)
+        texts.orientation = LinearLayout.VERTICAL
+        val label = TextView(act)
+        label.text = row.label
+        label.setTextColor(Ui.TEXT)
+        label.textSize = 16f
+        texts.addView(label)
+        if (row.sub.isNotEmpty()) {
+            val sub = TextView(act)
+            sub.text = row.sub
+            sub.setTextColor(Ui.DIM)
+            sub.textSize = 12f
+            texts.addView(sub)
+        }
+        line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        return line
     }
 
     // ================================================================== décodeur
@@ -319,13 +391,10 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
             manageDecoderApps()
             return
         }
-        val labels = (apps.map { it.name } + "✎  Gérer les applications…").toTypedArray()
-        dialog()
-            .setTitle("Applications du décodeur")
-            .setItems(labels) { _, which ->
-                if (which == apps.size) manageDecoderApps() else runDecoderApp(apps[which])
-            }
-            .show()
+        val rows = apps.map { IconRow(it.name, "", AppIcons.decoderKey(it.name, it.keys)) }
+        showIconList("Applications du décodeur", rows, neutral = "✎ Gérer" to { manageDecoderApps() }) { which ->
+            runDecoderApp(apps[which])
+        }
     }
 
     /** Prépare la TV (allumée, bonne entrée HDMI) puis envoie les touches au décodeur. */

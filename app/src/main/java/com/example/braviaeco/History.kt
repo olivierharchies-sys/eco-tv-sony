@@ -77,9 +77,33 @@ object AppIcons {
     private val urls = ConcurrentHashMap<String, String>()
     private val bitmaps = ConcurrentHashMap<String, Bitmap>()
     private val ui = Handler(Looper.getMainLooper())
+    @Volatile private var tvApps: List<TvApp> = emptyList()
+
+    /** Préfixe des clés d'icône des applications du décodeur (icône reprise de la même appli sur la TV). */
+    private const val DEC = "dec:"
 
     fun remember(apps: List<TvApp>) {
+        if (apps.isNotEmpty()) tvApps = apps
         apps.forEach { if (it.icon.isNotEmpty()) urls[it.uri] = it.icon }
+    }
+
+    /** Clé d'icône d'une appli du décodeur : nom + paquet Android (touche « APP:… ») s'il y en a un. */
+    fun decoderKey(name: String, keys: List<String>): String {
+        val pkg = keys.firstOrNull { it.startsWith(Decoder.APP_PREFIX) }?.substring(Decoder.APP_PREFIX.length) ?: ""
+        return DEC + name.trim().lowercase() + "|" + pkg
+    }
+
+    /** Icône de l'appli TV équivalente : même paquet dans l'URI Sony, sinon même nom. */
+    private fun resolveDecoder(key: String) {
+        if (urls.containsKey(key)) return
+        val (name, pkg) = key.removePrefix(DEC).split("|", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
+        val apps = tvApps.filter { it.icon.isNotEmpty() }
+        val norm = { s: String -> s.lowercase().filter { it.isLetterOrDigit() } }
+        val n = norm(name)
+        val hit = (if (pkg.isNotEmpty()) apps.firstOrNull { it.uri.contains(pkg, ignoreCase = true) } else null)
+            ?: apps.firstOrNull { norm(it.title) == n }
+            ?: apps.firstOrNull { n.length >= 3 && (norm(it.title).contains(n) || n.contains(norm(it.title))) }
+        if (hit != null) urls[key] = hit.icon
     }
 
     private fun file(ctx: Context, uri: String): File {
@@ -107,6 +131,7 @@ object AppIcons {
             if (wanted.any { !urls.containsKey(it) }) {
                 BraviaClient.getApps(app).getOrNull()?.let { remember(it) }
             }
+            wanted.filter { it.startsWith(DEC) }.forEach { resolveDecoder(it) }
             for (uri in wanted) {
                 val bytes = urls[uri]?.let { download(app, it) } ?: continue
                 val bmp = runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull() ?: continue

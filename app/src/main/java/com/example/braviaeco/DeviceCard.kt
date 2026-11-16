@@ -56,7 +56,7 @@ internal class DeviceCard(act: MainActivity) : SettingsCard(act) {
         refresh()
 
         cardButton(card, act.getString(R.string.settings_detecter_le_decodeur)) { detectDecoder() }
-        cardButton(card, act.getString(R.string.settings_associer_le_decodeur)) { pair(AtvDevice.DECODER) }
+        cardButton(card, act.getString(R.string.settings_associer_le_decodeur)) { act.pairing.pair(AtvDevice.DECODER) }
         cardButton(card, act.getString(R.string.settings_dissocier_le_decodeur)) {
             AtvPrefs.savePaired(act, false)
             Bg.run { AtvRemote.disconnect() }
@@ -132,7 +132,7 @@ internal class DeviceCard(act: MainActivity) : SettingsCard(act) {
         card.addView(tvKeysState)
         refresh()
 
-        cardButton(card, act.getString(R.string.settings_associer_la_tv)) { pair(AtvDevice.TV) }
+        cardButton(card, act.getString(R.string.settings_associer_la_tv)) { act.pairing.pair(AtvDevice.TV) }
         cardButton(card, act.getString(R.string.settings_dissocier_la_tv)) {
             AtvDevice.TV.savePaired(act, false)
             Bg.run { AtvRemote.disconnect(AtvDevice.TV) }

@@ -71,7 +71,7 @@ internal class EdenwoodCard(act: MainActivity) : SettingsCard(act) {
         cardButton(card, act.getString(R.string.settings_detecter_la_tv_edenwood)) { detectEdenwood() }
         cardButton(card, act.getString(R.string.settings_lire_la_mac_tv_allumee)) { learnEdenwoodMac() }
         cardButton(card, act.getString(R.string.settings_tester_le_reveil_reseau)) { testEdenwoodWake() }
-        cardButton(card, act.getString(R.string.settings_associer_la_tv_edenwood)) { pair(AtvDevice.EDENWOOD) }
+        cardButton(card, act.getString(R.string.settings_associer_la_tv_edenwood)) { act.pairing.pair(AtvDevice.EDENWOOD) }
         cardButton(card, act.getString(R.string.settings_dissocier_la_tv_edenwood)) {
             AtvDevice.EDENWOOD.savePaired(act, false)
             Bg.run { AtvRemote.disconnect(AtvDevice.EDENWOOD) }

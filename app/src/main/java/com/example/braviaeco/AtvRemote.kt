@@ -389,6 +389,7 @@ object AtvRemote {
                 .putString("atv_cert", Base64.encodeToString(certBytes, Base64.NO_WRAP))
                 .putBoolean("atv_paired", false)
                 .putBoolean("atv_tv_paired", false)
+                .putBoolean("atv_edenwood_paired", false)
                 .apply()
             val created = Identity(pair.private, cert)
             identity = created
@@ -473,6 +474,10 @@ object AtvRemote {
         is SSLException -> IllegalStateException(
             if (pairing) "${device.label} : connexion sécurisée refusée (${detail(e)})"
             else "${device.label} : association à refaire dans les réglages (${detail(e)})"
+        )
+        is EOFException -> IllegalStateException(
+            "${device.label} : la TV a coupé la connexion (démarrage en cours ou association refusée). " +
+                "Réessaie dans une minute, sinon refais l'association dans les réglages (${detail(e)})"
         )
         is IOException -> IllegalStateException("${device.label} injoignable en Wi-Fi (${detail(e)})")
         else -> e
@@ -604,7 +609,7 @@ object AtvRemote {
         l.lastSeen = System.currentTimeMillis()
         thread(isDaemon = true, name = "atv-remote") { readLoop(s, ready, l) }
         ready.await(4, TimeUnit.SECONDS)
-        if (s.isClosed) throw IOException("L'appareil a fermé la connexion")
+        if (s.isClosed) throw EOFException("L'appareil a fermé la connexion")
         l.socket = s
         return s
     }
@@ -670,26 +675,47 @@ object AtvRemote {
         }
     }
 
-    private fun send(ctx: Context, message: Pb, device: AtvDevice): Result<Unit> {
-        val result = runCatching {
-            synchronized(lock) {
-                try {
-                    writeFrame(connection(ctx, device).outputStream, message)
-                } catch (e: IOException) {
-                    // Connexion périmée : une seule nouvelle tentative sur une connexion neuve.
+    /** Pauses avant chaque nouvelle tentative : la première est immédiate (connexion périmée). */
+    private val RETRY_DELAYS_MS = longArrayOf(0L, 2000L, 3000L, 3000L, 3000L)
+
+    /** Hôte éteint ou absent du réseau : inutile d'insister longtemps. */
+    private fun hostDown(e: Throwable): Boolean =
+        e is java.net.SocketTimeoutException || e is java.net.NoRouteToHostException || e is java.net.UnknownHostException
+
+    /**
+     * Exécute [block] avec la connexion de [device] ; en cas d'échec réseau, referme la connexion et
+     * réessaie à intervalles espacés (la TV met jusqu'à une minute à être prête après son démarrage).
+     */
+    private fun <T> withRetry(device: AtvDevice, block: () -> T): T {
+        var last: IOException? = null
+        for ((i, delay) in RETRY_DELAYS_MS.withIndex()) {
+            if (delay > 0) Thread.sleep(delay)
+            try {
+                return synchronized(lock) { block() }
+            } catch (e: IOException) {
+                last = e
+                synchronized(lock) {
                     val l = link(device)
                     l.socket?.let { s -> runCatching { s.close() } }
                     l.socket = null
-                    writeFrame(connection(ctx, device).outputStream, message)
                 }
+                // TV éteinte ou hors réseau : une seule nouvelle tentative suffit.
+                if (hostDown(e) && i >= 1) break
             }
+        }
+        throw last ?: IOException("Échec de connexion")
+    }
+
+    private fun send(ctx: Context, message: Pb, device: AtvDevice): Result<Unit> {
+        val result = runCatching {
+            withRetry(device) { writeFrame(connection(ctx, device).outputStream, message) }
         }
         return friendly(result, false, device)
     }
 
     /** Ouvre d'avance la connexion à l'appareil : la première touche ne paie plus la poignée de main TLS. */
     fun warmUp(ctx: Context, device: AtvDevice) {
-        runCatching { synchronized(lock) { connection(ctx, device) } }
+        runCatching { withRetry(device) { connection(ctx, device) } }
     }
 
     /** Sens de l'appui : début d'appui long, fin d'appui long, ou appui court. */

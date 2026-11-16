@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Clé et certificat d'association : exclus de la sauvegarde cloud (la TV ne les reconnaîtrait plus). -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="bravia_eco.xml" />
+    </cloud-backup>
+</data-extraction-rules>

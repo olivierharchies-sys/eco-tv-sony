@@ -364,16 +364,17 @@ class TvActions(private val act: Activity) {
             if (wifi) AtvRemote.sendKey(act, KEY_ENTER, device)
             else BraviaClient.sendIrcc(act, "Confirm")
 
-        // --- Fenêtre graphique : en-tête, champ arrondi, touches rapides.
+        // --- Fenêtre graphique : en-tête (balai, fermer), champ arrondi, Entrée.
         val panel = panel()
-        panel.addView(header(
+        val top = header(
             "⌨️",
             when (device) {
                 AtvDevice.DECODER -> "Clavier · Décodeur"
                 AtvDevice.EDENWOOD -> "Clavier · Edenwood"
                 AtvDevice.TV -> "Clavier · TV"
             }
-        ))
+        )
+        panel.addView(top)
 
         edit.textSize = 18f
         edit.background = android.graphics.drawable.GradientDrawable().also {
@@ -404,25 +405,12 @@ class TvActions(private val act: Activity) {
                 false
             }
         }
-        fun insert(t: String) {
-            val start = edit.selectionStart.coerceAtLeast(0)
-            edit.text.insert(start, t)
-        }
-        panel.addView(keyRow(
-            "@" to { insert("@") }, "." to { insert(".") }, ".com" to { insert(".com") }, "␣" to { insert(" ") }
-        ))
-        panel.addView(keyRow(
-            "⌫" to {
-                val end = edit.selectionEnd
-                if (end > 0) edit.text.delete(end - 1, end)
-            },
-            "Effacer" to { edit.text.clear() },
-            "🧹 Vider TV" to {
-                Ui.toast(act, "Champ de l'écran vidé…")
-                runIo { clearRemote() }
-            },
-            "Fermer" to { dialog.dismiss() }
-        ))
+        // Balai (vide le champ de l'écran) et ⓧ (ferme) à droite du nom de l'appareil.
+        top.addView(roundIcon("🧹") {
+            Ui.toast(act, "Champ de l'écran vidé…")
+            runIo { clearRemote() }
+        })
+        top.addView(roundIcon("✕") { dialog.dismiss() })
         val go = wideKey("↵  Entrée", accent = true) { sendEnter() }
         panel.addView(go)
 
@@ -448,8 +436,35 @@ class TvActions(private val act: Activity) {
         return p
     }
 
+    /** Bouton rond (icône) placé dans l'en-tête. */
+    private fun roundIcon(text: String, onClick: () -> Unit): View {
+        val t = TextView(act)
+        t.text = text
+        t.textSize = 16f
+        t.gravity = Gravity.CENTER
+        t.setTextColor(Ui.TEXT)
+        val shape = android.graphics.drawable.GradientDrawable()
+        shape.shape = android.graphics.drawable.GradientDrawable.OVAL
+        shape.setColor(Ui.SURFACE)
+        shape.setStroke(Ui.dp(act, 1), Ui.DIM)
+        val mask = android.graphics.drawable.GradientDrawable()
+        mask.shape = android.graphics.drawable.GradientDrawable.OVAL
+        mask.setColor(android.graphics.Color.WHITE)
+        t.background = android.graphics.drawable.RippleDrawable(
+            android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#44FFFFFF")), shape, mask
+        )
+        t.isClickable = true
+        t.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            onClick()
+        }
+        val size = Ui.dp(act, 40)
+        t.layoutParams = LinearLayout.LayoutParams(size, size).also { it.leftMargin = Ui.dp(act, 8) }
+        return t
+    }
+
     /** En-tête : pastille emoji + titre. */
-    private fun header(emoji: String, title: String): View {
+    private fun header(emoji: String, title: String): LinearLayout {
         val row = LinearLayout(act)
         row.orientation = LinearLayout.HORIZONTAL
         row.gravity = Gravity.CENTER_VERTICAL
@@ -469,25 +484,7 @@ class TvActions(private val act: Activity) {
         t.setTextColor(Ui.TEXT)
         t.textSize = 18f
         t.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
-        row.addView(t)
-        return row
-    }
-
-    /** Rangée de touches rapides de même largeur. */
-    private fun keyRow(vararg keys: Pair<String, () -> Unit>): View {
-        val row = LinearLayout(act)
-        row.orientation = LinearLayout.HORIZONTAL
-        row.setPadding(0, Ui.dp(act, 10), 0, 0)
-        val m = Ui.dp(act, 4)
-        for ((label, onClick) in keys) {
-            val b = Ui.pill(act, label, 15f)
-            b.background = Ui.rounded(act, Ui.SURFACE, 14)
-            b.setOnClickListener {
-                it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                onClick()
-            }
-            row.addView(b, LinearLayout.LayoutParams(0, Ui.dp(act, 46), 1f).also { it.setMargins(m, 0, m, 0) })
-        }
+        row.addView(t, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         return row
     }
 

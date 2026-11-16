@@ -192,19 +192,11 @@ class SceneUi(private val act: Activity, private val actions: TvActions) {
     fun show() {
         val scenes = ScenePrefs.scenes(act)
         val left = SleepTimer.remainingMinutes(act)
-        val timer = if (left == null) "⏱  Minuterie de veille…" else "⏱  Veille dans $left min (modifier)"
-        val labels = (scenes.map { "▶  " + it.name } + timer + "✎  Gérer les scènes…").toTypedArray()
-        dialog()
-            .setTitle("Scènes")
-            .setItems(labels) { _, which ->
-                when {
-                    which < scenes.size -> run(scenes[which])
-                    which == scenes.size -> showSleepTimer()
-                    else -> manage()
-                }
-            }
-            .setNegativeButton("Fermer", null)
-            .show()
+        val items = scenes.map { GridItem(it.name, "🎬") } +
+            GridItem("Minuterie", "⏱", sub = if (left == null) "" else "reste $left min", active = left != null)
+        TileGrid.show(act, "Scènes", items, neutral = "✎ Gérer" to { manage() }) { which ->
+            if (which < scenes.size) run(scenes[which]) else showSleepTimer()
+        }
     }
 
     private fun run(scene: Scene) {
@@ -218,10 +210,8 @@ class SceneUi(private val act: Activity, private val actions: TvActions) {
 
     fun showSleepTimer() {
         val minutes = intArrayOf(15, 30, 45, 60, 90, 120)
-        val labels = (minutes.map { "$it minutes" } + "Annuler la minuterie").toTypedArray()
-        dialog()
-            .setTitle("Éteindre la TV dans…")
-            .setItems(labels) { _, which ->
+        val items = minutes.map { GridItem("$it min", "⏱") } + GridItem("Annuler", "✖")
+        TileGrid.show(act, "Éteindre la TV dans…", items) { which ->
                 if (which < minutes.size) {
                     SleepTimer.set(act, minutes[which])
                     Ui.toast(act, "La TV s'éteindra dans ${minutes[which]} min")
@@ -229,18 +219,13 @@ class SceneUi(private val act: Activity, private val actions: TvActions) {
                     SleepTimer.cancel(act)
                     Ui.toast(act, "Minuterie annulée")
                 }
-            }
-            .show()
+        }
     }
 
     private fun manage() {
         val scenes = ScenePrefs.scenes(act)
-        val labels = (listOf("＋  Nouvelle scène") + scenes.map { "✎  " + it.name }).toTypedArray()
-        dialog()
-            .setTitle("Gérer les scènes")
-            .setItems(labels) { _, which -> edit(if (which == 0) null else which - 1) }
-            .setNegativeButton("Fermer", null)
-            .show()
+        val items = listOf(GridItem("Nouvelle scène", "➕")) + scenes.map { GridItem(it.name, "✏️") }
+        TileGrid.show(act, "Gérer les scènes", items) { which -> edit(if (which == 0) null else which - 1) }
     }
 
     private fun edit(index: Int?) {

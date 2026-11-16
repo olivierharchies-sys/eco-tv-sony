@@ -11,7 +11,6 @@ import android.widget.BaseAdapter
 import android.widget.ImageView
 import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.GridView
 import android.widget.LinearLayout
 import android.widget.TextView
 import org.json.JSONArray
@@ -266,82 +265,16 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
             override fun getCount() = rows.size
             override fun getItem(position: Int) = rows[position]
             override fun getItemId(position: Int) = position.toLong()
-            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
-                if (grid) tile(rows[position]) else line(rows[position])
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View = line(rows[position])
         }
         if (!grid) {
             val builder = dialog().setTitle(title).setAdapter(adapter) { _, which -> onPick(which) }
             if (neutral != null) builder.setNeutralButton(neutral.first) { _, _ -> neutral.second() }
             builder.show()
+            AppIcons.prepare(act, rows.map { it.iconUri }) { if (!act.isFinishing) adapter.notifyDataSetChanged() }
         } else {
-            val view = GridView(act)
-            view.numColumns = 3
-            view.stretchMode = GridView.STRETCH_COLUMN_WIDTH
-            view.verticalSpacing = Ui.dp(act, 10)
-            view.horizontalSpacing = Ui.dp(act, 10)
-            view.selector = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
-            val pad = Ui.dp(act, 14)
-            view.setPadding(pad, pad, pad, pad)
-            view.clipToPadding = false
-            view.adapter = adapter
-            val builder = dialog().setTitle(title).setView(view).setNegativeButton("Fermer", null)
-            if (neutral != null) builder.setNeutralButton(neutral.first) { _, _ -> neutral.second() }
-            val dlg = builder.create()
-            view.setOnItemClickListener { _, _, pos, _ ->
-                dlg.dismiss()
-                onPick(pos)
-            }
-            dlg.show()
+            TileGrid.show(act, title, rows.map { GridItem(it.label, sub = it.sub, iconUri = it.iconUri) }, neutral = neutral, onPick = onPick)
         }
-        AppIcons.prepare(act, rows.map { it.iconUri }) { if (!act.isFinishing) adapter.notifyDataSetChanged() }
-    }
-
-    /** Icône de la ligne, sinon pastille colorée avec l'initiale. */
-    private fun iconView(row: IconRow, sizeDp: Int): View {
-        val size = Ui.dp(act, sizeDp)
-        val bmp = if (row.iconUri.isEmpty()) null else AppIcons.bitmap(act, row.iconUri)
-        if (bmp != null) {
-            val image = ImageView(act)
-            image.scaleType = ImageView.ScaleType.FIT_CENTER
-            image.setImageBitmap(bmp)
-            image.layoutParams = LinearLayout.LayoutParams(size, size)
-            return image
-        }
-        val letter = TextView(act)
-        val clean = row.label.trim()
-        letter.text = clean.take(1).uppercase().ifEmpty { "?" }
-        letter.setTextColor(android.graphics.Color.WHITE)
-        letter.textSize = sizeDp * 0.42f
-        letter.gravity = android.view.Gravity.CENTER
-        letter.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        val hue = ((clean.lowercase().hashCode() and 0x7fffffff) % 360).toFloat()
-        val bg = android.graphics.drawable.GradientDrawable()
-        bg.setColor(android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.55f, 0.62f)))
-        bg.cornerRadius = size * 0.24f * Ui.ROUND
-        letter.background = bg
-        letter.layoutParams = LinearLayout.LayoutParams(size, size)
-        return letter
-    }
-
-    /** Tuile de grille : icône au-dessus du nom. */
-    private fun tile(row: IconRow): View {
-        val box = LinearLayout(act)
-        box.orientation = LinearLayout.VERTICAL
-        box.gravity = android.view.Gravity.CENTER_HORIZONTAL
-        val pad = Ui.dp(act, 8)
-        box.setPadding(pad, Ui.dp(act, 12), pad, Ui.dp(act, 10))
-        box.background = Ui.rounded(act, Ui.SURFACE_HI, 16)
-        box.addView(iconView(row, 52))
-        val label = TextView(act)
-        label.text = row.label
-        label.setTextColor(Ui.TEXT)
-        label.textSize = 13f
-        label.gravity = android.view.Gravity.CENTER
-        label.maxLines = 2
-        label.ellipsize = android.text.TextUtils.TruncateAt.END
-        label.setPadding(0, Ui.dp(act, 6), 0, 0)
-        box.addView(label)
-        return box
     }
 
     /** Ligne de liste : icône, nom, sous-titre. */
@@ -351,7 +284,7 @@ class AppShortcuts(private val act: Activity, private val actions: TvActions) {
         line.gravity = android.view.Gravity.CENTER_VERTICAL
         val pad = Ui.dp(act, 16)
         line.setPadding(pad, Ui.dp(act, 8), pad, Ui.dp(act, 8))
-        val icon = iconView(row, 40)
+        val icon = TileGrid.icon(act, GridItem(row.label, iconUri = row.iconUri), 40)
         (icon.layoutParams as LinearLayout.LayoutParams).rightMargin = Ui.dp(act, 14)
         line.addView(icon)
         val texts = LinearLayout(act)

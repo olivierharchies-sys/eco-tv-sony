@@ -203,13 +203,13 @@ class Remote2Activity : Activity() {
     }
 
     private fun showMore() {
-        val labels = arrayOf(
-            "Source", "Clavier", "Pavé numérique", "Volume précis", "Scènes et minuterie",
-            "Chaînes favorites", "Page web", "Toutes les commandes", "Réglages", "Télécommande classique"
+        val items = listOf(
+            GridItem("Source", "🔌"), GridItem("Clavier", "⌨️"), GridItem("Pavé numérique", "🔢"),
+            GridItem("Volume précis", "🔊"), GridItem("Scènes", "🎬"), GridItem("Chaînes favorites", "⭐"),
+            GridItem("Page web", "🌐"), GridItem("Toutes les commandes", "🧰"), GridItem("Réglages", "⚙️"),
+            GridItem("Télécommande classique", "📱")
         )
-        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle("Plus")
-            .setItems(labels) { _, which ->
+        TileGrid.show(this, "Plus", items) { which ->
                 when (which) {
                     0 -> actions.showSourcePicker()
                     1 -> actions.showKeyboard()
@@ -222,8 +222,7 @@ class Remote2Activity : Activity() {
                     8 -> startActivity(Intent(this, MainActivity::class.java))
                     else -> switchToClassic()
                 }
-            }
-            .show()
+        }
     }
 
     private fun switchToClassic() {

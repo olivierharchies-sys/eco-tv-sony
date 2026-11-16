@@ -79,14 +79,11 @@ class MoreActivity : Activity() {
                 fail(result.exceptionOrNull()?.message ?: "Aucune application")
                 return@bg
             }
-            AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-                .setTitle("Applications")
-                .setItems(apps.map { it.title }.toTypedArray()) { _, which ->
-                    val app = apps[which]
-                    actions.runIo { BraviaClient.launchApp(this, app.uri) }
-                }
-                .setNegativeButton("Fermer", null)
-                .show()
+            AppIcons.remember(apps)
+            TileGrid.show(this, "Applications", apps.map { GridItem(it.title, iconUri = it.uri) }) { which ->
+                val app = apps[which]
+                actions.runIo { BraviaClient.launchApp(this, app.uri) }
+            }
         }
     }
 
@@ -118,19 +115,16 @@ class MoreActivity : Activity() {
     private fun showEco() {
         val modes = EcoMode.values()
         val current = Prefs.lastMode(this)
-        val labels = modes.map { if (it == current) "● ${it.label}" else it.label }.toTypedArray()
-        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle("Économie d'énergie")
-            .setItems(labels) { _, which ->
+        val emoji = mapOf(EcoMode.OFF to "💡", EcoMode.LOW to "🔅", EcoMode.HIGH to "🍃", EcoMode.PICTURE_OFF to "🌙")
+        val items = modes.map { GridItem(it.label, emoji[it] ?: "⚡", active = it == current) }
+        TileGrid.show(this, "Économie d'énergie", items, columns = 2) { which ->
                 val mode = modes[which]
                 actions.runIo {
                     val r = BraviaClient.setMode(this, mode)
                     EcoWidgetProvider.refreshAll(this)
                     r
                 }
-            }
-            .setNegativeButton("Fermer", null)
-            .show()
+        }
     }
 
     private fun showInfo() {

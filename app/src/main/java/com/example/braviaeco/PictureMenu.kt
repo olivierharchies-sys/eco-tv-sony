@@ -27,34 +27,38 @@ class PictureMenu(private val act: Activity) {
 
     // ---------------------------------------------------------------- menu
 
+    private val KIND_EMOJI = mapOf(
+        Picture.Kind.NATIVE_4K to "🎞",
+        Picture.Kind.UPSCALED to "📺",
+        Picture.Kind.GAME to "🎮",
+        Picture.Kind.NIGHT to "🌙",
+        Picture.Kind.SPORT to "⚽",
+        Picture.Kind.DAY to "☀️"
+    )
+
     fun showMenu() {
         val names = PictureSlots.names(act)
-        val labels = ArrayList<String>()
+        val items = ArrayList<GridItem>()
         val actions = ArrayList<() -> Unit>()
 
-        labels.add("＋ Mémoriser les réglages actuels")
+        items.add(GridItem("Mémoriser", "➕", sub = "réglages actuels"))
         actions.add { askName() }
         for (n in names) {
-            val mark = if (n == PictureSlots.last(act)) "  (dernier)" else ""
-            labels.add("Appliquer : $n$mark")
+            items.add(GridItem(n, "💾", sub = "emplacement", active = n == PictureSlots.last(act)))
             actions.add { applySlot(n) }
         }
         for (kind in Picture.Kind.values()) {
-            labels.add("Profil : ${kind.label}")
+            items.add(GridItem(kind.label, KIND_EMOJI[kind] ?: "🖼"))
             actions.add { applyKind(kind) }
         }
-        labels.add("⚙  Tous les réglages…")
+        items.add(GridItem("Tous les réglages", "⚙️"))
         actions.add { act.startActivity(Intent(act, PictureSettingsActivity::class.java)) }
         if (names.isNotEmpty()) {
-            labels.add("Supprimer un emplacement…")
+            items.add(GridItem("Supprimer", "🗑", sub = "un emplacement"))
             actions.add { askDelete(names) }
         }
 
-        AlertDialog.Builder(act)
-            .setTitle("Image")
-            .setItems(labels.toTypedArray()) { _, which -> actions[which]() }
-            .setNegativeButton("Fermer", null)
-            .show()
+        TileGrid.show(act, "Image", items) { which -> actions[which]() }
     }
 
     // ---------------------------------------------------------------- emplacements

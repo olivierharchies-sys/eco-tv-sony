@@ -1,7 +1,6 @@
 package com.example.braviaeco
 
 import android.app.Activity
-import android.app.AlertDialog
 
 /**
  * Bouton d'actions rapides de la télécommande : écran éteint (le son continue) et minuteur d'extinction.
@@ -12,17 +11,13 @@ class QuickMenu(private val act: Activity) {
 
     fun show() {
         val remaining = SleepTimer.remainingMinutes(act)
-        val labels = arrayOf(
-            "Écran éteint / rallumé (le son continue)",
-            if (remaining != null) "Minuteur d'extinction (reste $remaining min)…" else "Minuteur d'extinction…"
+        val items = listOf(
+            GridItem("Écran éteint / rallumé", "🌙", sub = "le son continue"),
+            GridItem("Minuteur d'extinction", "⏱", sub = if (remaining != null) "reste $remaining min" else "", active = remaining != null)
         )
-        AlertDialog.Builder(act)
-            .setTitle("Actions rapides")
-            .setItems(labels) { _, which ->
-                if (which == 0) togglePictureOff() else timerDialog()
-            }
-            .setNegativeButton("Fermer", null)
-            .show()
+        TileGrid.show(act, "Actions rapides", items, columns = 2) { which ->
+            if (which == 0) togglePictureOff() else timerDialog()
+        }
     }
 
     // ---------------------------------------------------------------- écran éteint
@@ -43,14 +38,12 @@ class QuickMenu(private val act: Activity) {
 
     private fun timerDialog() {
         val minutes = intArrayOf(15, 30, 45, 60, 90, 120)
-        val labels = ArrayList<String>()
-        minutes.forEach { labels.add("Éteindre la TV dans $it min") }
+        val items = ArrayList<GridItem>()
+        minutes.forEach { items.add(GridItem("$it min", "⏱")) }
         val remaining = SleepTimer.remainingMinutes(act)
-        if (remaining != null) labels.add("Annuler le minuteur (reste $remaining min)")
+        if (remaining != null) items.add(GridItem("Annuler", "✖", sub = "reste $remaining min"))
 
-        AlertDialog.Builder(act)
-            .setTitle("Minuteur d'extinction")
-            .setItems(labels.toTypedArray()) { _, i ->
+        TileGrid.show(act, "Éteindre la TV dans…", items) { i ->
                 if (i < minutes.size) {
                     SleepTimer.set(act, minutes[i])
                     toast("La TV s'éteindra dans ${minutes[i]} min")
@@ -58,8 +51,6 @@ class QuickMenu(private val act: Activity) {
                     SleepTimer.cancel(act)
                     toast("Minuteur annulé")
                 }
-            }
-            .setNegativeButton("Fermer", null)
-            .show()
+        }
     }
 }

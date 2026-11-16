@@ -5,8 +5,6 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
-import android.text.Editable
-import android.text.TextWatcher
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.View
@@ -338,133 +336,286 @@ class TvActions(private val act: Activity) {
         edit.setTextColor(Ui.TEXT)
         edit.setHintTextColor(Ui.DIM)
 
-        // Lus et modifiés uniquement sur le fil réseau (appels faits dans l'ordre).
-        var byKeys = device != AtvDevice.TV
-        var typed = ""
-        var sent = ""
-
         /**
-         * TV : texte complet envoyé d'un bloc au clavier système. Si l'application affichée a son
-         * propre clavier, la TV le refuse : on passe alors aux lettres envoyées une par une.
-         * Décodeur : toujours lettre par lettre (Wi-Fi direct).
+         * Envoi au clic sur Entrée seulement (rien pendant la frappe) :
+         * appareil associé en Wi-Fi direct → lettres simulées une par une, puis la touche Entrée ;
+         * sinon (TV Sony non associée) → texte remis au clavier de la TV, puis OK.
          */
+        val wifi = device.paired(act) && device.ip(act).isNotEmpty()
+
         fun push(text: String): Result<Unit> {
-            if (!byKeys) {
-                val r = BraviaClient.setText(act, text)
-                if (r.exceptionOrNull() !is NoTextFieldException) return r
-                byKeys = true
+            if (!wifi) return BraviaClient.setText(act, text)
+            val letters = AtvRemote.typable(text)
+            if (letters.isEmpty()) return Result.failure(IllegalStateException("Aucun caractère envoyable"))
+            return AtvRemote.type(act, "", letters, device)
+        }
+
+        /** Vide le champ affiché à l'écran : effacements répétés (Wi-Fi direct), sinon texte vide. */
+        fun clearRemote(): Result<Unit> = runCatching {
+            if (!wifi) return@runCatching BraviaClient.setText(act, "").getOrThrow()
+            repeat(CLEAR_DELETES) {
+                AtvRemote.sendKey(act, KEY_DEL, device).getOrThrow()
+                Thread.sleep(30)
             }
-            // Champ de saisie annoncé par l'appareil : texte complet remis à son clavier.
-            val ime = AtvRemote.sendText(act, sent, text, device)
-            if (ime.getOrNull() == true) sent = text
-            if (ime.getOrNull() != false) return ime.map { }
-            // Sinon (application avec son propre clavier) : lettres envoyées comme des touches.
-            val target = AtvRemote.typable(text)
-            return AtvRemote.type(act, typed, target, device).onSuccess { typed = target }
         }
 
         /** Vraie touche Entrée (valide la saisie) ; « OK » choisirait la lettre surlignée à l'écran. */
         fun enter(): Result<Unit> =
-            if (device.paired(act) && device.ip(act).isNotEmpty()) AtvRemote.sendKey(act, KEY_ENTER, device)
+            if (wifi) AtvRemote.sendKey(act, KEY_ENTER, device)
             else BraviaClient.sendIrcc(act, "Confirm")
 
-        // Saisie directe : chaque caractère tapé ou effacé part aussitôt, dans l'ordre.
-        edit.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                val text = s?.toString() ?: ""
-                runIo { push(text) }
+        // --- Fenêtre graphique : en-tête, champ arrondi, touches rapides.
+        val panel = panel()
+        panel.addView(header(
+            "⌨️",
+            when (device) {
+                AtvDevice.DECODER -> "Clavier · Décodeur"
+                AtvDevice.EDENWOOD -> "Clavier · Edenwood"
+                AtvDevice.TV -> "Clavier · TV"
             }
-        })
+        ))
+
+        edit.textSize = 18f
+        edit.background = android.graphics.drawable.GradientDrawable().also {
+            it.setColor(Ui.SURFACE_HI)
+            it.setStroke(Ui.dp(act, 2), Ui.ACCENT)
+            it.cornerRadius = Ui.dp(act, 16) * Ui.ROUND
+        }
+        edit.setPadding(Ui.dp(act, 16), Ui.dp(act, 14), Ui.dp(act, 16), Ui.dp(act, 14))
+        panel.addView(edit, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        val dialog = AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert).setView(panel).create()
+
+        fun sendEnter() {
+            val text = edit.text.toString()
+            if (text.isBlank()) {
+                runIo { enter() }
+                return
+            }
+            if (wifi && AtvRemote.typable(text) != text.lowercase()) Ui.toast(act, "Accents, majuscules et symboles spéciaux simplifiés")
+            edit.text.clear()
+            runIo { push(text).mapCatching { enter().getOrThrow() } }
+        }
         edit.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) {
-                val text = edit.text.toString()
-                runIo { push(text).mapCatching { enter().getOrThrow() } }
+                sendEnter()
                 true
             } else {
                 false
             }
         }
+        fun insert(t: String) {
+            val start = edit.selectionStart.coerceAtLeast(0)
+            edit.text.insert(start, t)
+        }
+        panel.addView(keyRow(
+            "@" to { insert("@") }, "." to { insert(".") }, ".com" to { insert(".com") }, "␣" to { insert(" ") }
+        ))
+        panel.addView(keyRow(
+            "⌫" to {
+                val end = edit.selectionEnd
+                if (end > 0) edit.text.delete(end - 1, end)
+            },
+            "Effacer" to { edit.text.clear() },
+            "🧹 Vider TV" to {
+                Ui.toast(act, "Champ de l'écran vidé…")
+                runIo { clearRemote() }
+            },
+            "Fermer" to { dialog.dismiss() }
+        ))
+        val go = wideKey("↵  Entrée", accent = true) { sendEnter() }
+        panel.addView(go)
 
-        val box = FrameLayout(act)
-        val pad = Ui.dp(act, 20)
-        box.setPadding(pad, Ui.dp(act, 8), pad, 0)
-        box.addView(
-            edit,
-            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        )
-
-        val dialog = AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle(
-                when (device) {
-                    AtvDevice.DECODER -> "Clavier du décodeur"
-                    AtvDevice.EDENWOOD -> "Clavier de la Edenwood"
-                    AtvDevice.TV -> "Clavier de la TV"
-                }
-            )
-            .setView(box)
-            .setPositiveButton("Entrée") { _, _ ->
-                val text = edit.text.toString()
-                runIo { push(text).mapCatching { enter().getOrThrow() } }
-            }
-            .setNegativeButton("Fermer", null)
-            .create()
+        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
         dialog.show()
         edit.requestFocus()
     }
 
+    // ------------------------------------------------------------------ éléments graphiques des fenêtres
+
+    /** Panneau arrondi des fenêtres clavier / pavé. */
+    private fun panel(): LinearLayout {
+        val p = LinearLayout(act)
+        p.orientation = LinearLayout.VERTICAL
+        val pad = Ui.dp(act, 18)
+        p.setPadding(pad, pad, pad, pad)
+        p.background = android.graphics.drawable.GradientDrawable().also {
+            it.setColor(Ui.BG)
+            it.setStroke(Ui.dp(act, 1), Ui.SURFACE_HI)
+            it.cornerRadius = Ui.dp(act, 28) * Ui.ROUND
+        }
+        return p
+    }
+
+    /** En-tête : pastille emoji + titre. */
+    private fun header(emoji: String, title: String): View {
+        val row = LinearLayout(act)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER_VERTICAL
+        row.setPadding(0, 0, 0, Ui.dp(act, 14))
+        val badge = TextView(act)
+        badge.text = emoji
+        badge.textSize = 18f
+        badge.gravity = Gravity.CENTER
+        badge.background = android.graphics.drawable.GradientDrawable().also {
+            it.shape = android.graphics.drawable.GradientDrawable.OVAL
+            it.setColor(Ui.SURFACE_HI)
+        }
+        val size = Ui.dp(act, 38)
+        row.addView(badge, LinearLayout.LayoutParams(size, size).also { it.rightMargin = Ui.dp(act, 12) })
+        val t = TextView(act)
+        t.text = title
+        t.setTextColor(Ui.TEXT)
+        t.textSize = 18f
+        t.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+        row.addView(t)
+        return row
+    }
+
+    /** Rangée de touches rapides de même largeur. */
+    private fun keyRow(vararg keys: Pair<String, () -> Unit>): View {
+        val row = LinearLayout(act)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.setPadding(0, Ui.dp(act, 10), 0, 0)
+        val m = Ui.dp(act, 4)
+        for ((label, onClick) in keys) {
+            val b = Ui.pill(act, label, 15f)
+            b.background = Ui.rounded(act, Ui.SURFACE, 14)
+            b.setOnClickListener {
+                it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                onClick()
+            }
+            row.addView(b, LinearLayout.LayoutParams(0, Ui.dp(act, 46), 1f).also { it.setMargins(m, 0, m, 0) })
+        }
+        return row
+    }
+
+    /** Grand bouton sur toute la largeur (accent = couleur de l'appli). */
+    private fun wideKey(label: String, accent: Boolean, onClick: () -> Unit): View {
+        val b = Ui.pill(act, label, 16f)
+        b.background = Ui.rounded(act, if (accent) Ui.ACCENT else Ui.SURFACE, 16)
+        if (accent) b.setTextColor(android.graphics.Color.parseColor("#0E1014"))
+        b.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            onClick()
+        }
+        b.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(act, 52)).also {
+            it.topMargin = Ui.dp(act, 12)
+        }
+        return b
+    }
+
+    /** Touche ronde du pavé (effet de vague au toucher). */
+    private fun circleKey(label: String, sub: String, color: Int, textColor: Int): TextView {
+        val t = TextView(act)
+        t.text = if (sub.isEmpty()) label else android.text.SpannableString("$label\n$sub").also {
+            it.setSpan(android.text.style.RelativeSizeSpan(0.42f), label.length + 1, label.length + 1 + sub.length, 0)
+            it.setSpan(android.text.style.ForegroundColorSpan(Ui.DIM), label.length + 1, label.length + 1 + sub.length, 0)
+        }
+        t.setTextColor(textColor)
+        t.textSize = 26f
+        t.gravity = Gravity.CENTER
+        t.setLineSpacing(0f, 0.9f)
+        t.typeface = android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL)
+        val shape = android.graphics.drawable.GradientDrawable()
+        shape.shape = android.graphics.drawable.GradientDrawable.OVAL
+        shape.setColor(color)
+        val mask = android.graphics.drawable.GradientDrawable()
+        mask.shape = android.graphics.drawable.GradientDrawable.OVAL
+        mask.setColor(android.graphics.Color.WHITE)
+        t.background = android.graphics.drawable.RippleDrawable(
+            android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#44FFFFFF")), shape, mask
+        )
+        t.isClickable = true
+        return t
+    }
+
     // ------------------------------------------------------------------ pavé numérique
 
     fun showNumpad(favorites: Boolean = true) {
-        val box = LinearLayout(act)
-        box.orientation = LinearLayout.VERTICAL
-        val pad = Ui.dp(act, 16)
-        box.setPadding(pad, Ui.dp(act, 8), pad, 0)
+        val panel = panel()
+        panel.addView(header("🔢", "Pavé numérique"))
 
+        // Afficheur : chiffres tapés (effacé après une pause, comme la TV).
+        val display = TextView(act)
+        display.textSize = 40f
+        display.gravity = Gravity.CENTER
+        display.setTextColor(Ui.ACCENT)
+        display.typeface = android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL)
+        display.letterSpacing = 0.15f
+        display.hint = "– –"
+        display.setHintTextColor(Ui.SURFACE_HI)
+        display.background = Ui.rounded(act, Ui.SURFACE, 18)
+        panel.addView(display, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(act, 72)).also {
+            it.bottomMargin = Ui.dp(act, 14)
+        })
+        val handler = Handler(Looper.getMainLooper())
+        val reset = Runnable { display.text = "" }
+
+        val letters = mapOf(
+            "2" to "ABC", "3" to "DEF", "4" to "GHI", "5" to "JKL",
+            "6" to "MNO", "7" to "PQRS", "8" to "TUV", "9" to "WXYZ"
+        )
+        val dialog = AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert).setView(panel).create()
         val rows = listOf(
             listOf("1", "2", "3"),
             listOf("4", "5", "6"),
             listOf("7", "8", "9"),
-            listOf("", "0", "OK")
+            listOf(if (favorites) "★" else "", "0", "OK")
         )
-        val margin = Ui.dp(act, 4)
+        val size = Ui.dp(act, 70)
         for (labels in rows) {
             val row = LinearLayout(act)
             row.orientation = LinearLayout.HORIZONTAL
+            row.gravity = Gravity.CENTER
             for (label in labels) {
-                val cell: View
-                if (label.isEmpty()) {
-                    cell = View(act)
-                } else {
-                    val b = Ui.pill(act, label, 20f)
-                    b.background = Ui.rounded(act, Ui.SURFACE_HI, 16)
-                    b.setOnClickListener {
-                        it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        key(if (label == "OK") "Confirm" else "Num$label")
+                val cell: View = when (label) {
+                    "" -> View(act)
+                    "OK" -> circleKey("OK", "", Ui.ACCENT, android.graphics.Color.parseColor("#0E1014")).also {
+                        it.textSize = 20f
+                        it.setOnClickListener { v ->
+                            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            key("Confirm")
+                            handler.removeCallbacks(reset)
+                            handler.postDelayed(reset, 600)
+                        }
                     }
-                    cell = b
+                    "★" -> circleKey("★", "", Ui.SURFACE, Ui.ACCENT).also {
+                        it.setOnClickListener {
+                            dialog.dismiss()
+                            Favorites.show(act, this)
+                        }
+                    }
+                    else -> circleKey(label, letters[label] ?: "", Ui.SURFACE_HI, Ui.TEXT).also {
+                        it.setOnClickListener { v ->
+                            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            key("Num$label")
+                            val shown = display.text.toString()
+                            display.text = (if (shown.length >= 4) "" else shown) + label
+                            handler.removeCallbacks(reset)
+                            handler.postDelayed(reset, 2500)
+                        }
+                    }
                 }
-                val lp = LinearLayout.LayoutParams(0, Ui.dp(act, 58), 1f)
-                lp.setMargins(margin, margin, margin, margin)
-                row.addView(cell, lp)
+                val m = Ui.dp(act, 8)
+                row.addView(cell, LinearLayout.LayoutParams(size, size).also { it.setMargins(m, m / 2, m, m / 2) })
             }
-            box.addView(row)
+            panel.addView(row)
         }
-
-        val dialog = AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle("Pavé numérique")
-            .setView(box)
-        // Chaînes favorites : contenus de la Sony, sans objet pour la Edenwood.
-        if (favorites) dialog.setNeutralButton("Chaînes favorites") { _, _ -> Favorites.show(act, this) }
-        dialog.setNegativeButton("Fermer", null).show()
+        panel.addView(wideKey("Fermer", accent = false) { dialog.dismiss() })
+        dialog.setOnDismissListener { handler.removeCallbacks(reset) }
+        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        dialog.show()
     }
 
     private companion object {
         /** Le son sort toujours de la TV : ces touches ne partent jamais vers le décodeur. */
         val TV_ONLY = setOf("VolumeUp", "VolumeDown", "Mute")
         private const val KEY_ENTER = 66
+        private const val KEY_DEL = 67
+        /** Nombre d'effacements envoyés par « Vider TV » (assez pour une recherche). */
+        private const val CLEAR_DELETES = 40
 
         /** Nouveaux essais de resynchronisation quand la TV ne répond pas encore (démarrage). */
         private const val SYNC_RETRIES = 12

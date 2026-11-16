@@ -121,15 +121,13 @@ internal class WebCard(act: MainActivity) : SettingsCard(act) {
                     return@runOnUiThread
                 }
                 show("")
-                val labels = (listOf(act.getString(R.string.settings_navigateur_integre_par_defaut_2)) + apps.map { it.title }).toTypedArray()
-                AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
-                    .setTitle(act.getString(R.string.settings_navigateur_de_la_tv_2))
-                    .setItems(labels) { _, which ->
-                        Prefs.saveWebApp(act, if (which == 0) null else apps[which - 1])
-                        showBrowser()
-                    }
-                    .setNegativeButton(act.getString(R.string.dw_sleep_cancel), null)
-                    .show()
+                AppIcons.remember(apps)
+                val items = listOf(GridItem(act.getString(R.string.settings_navigateur_integre_par_defaut_2), "🌐")) +
+                    apps.map { GridItem(it.title, iconUri = it.uri) }
+                TileGrid.show(act, act.getString(R.string.settings_navigateur_de_la_tv_2), items) { which ->
+                    Prefs.saveWebApp(act, if (which == 0) null else apps[which - 1])
+                    showBrowser()
+                }
             }
         }
     }

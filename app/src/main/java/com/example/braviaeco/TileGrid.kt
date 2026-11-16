@@ -102,6 +102,7 @@ object TileGrid {
             bg.setColor(Color.HSVToColor(floatArrayOf(hue, 0.55f, 0.62f)))
         }
         t.gravity = Gravity.CENTER
+        t.includeFontPadding = false
         t.background = bg
         t.layoutParams = LinearLayout.LayoutParams(size, size)
         return t
@@ -120,28 +121,30 @@ object TileGrid {
                 it.cornerRadius = Ui.dp(act, 16) * Ui.ROUND
             }
         }
-        box.addView(icon(act, item, 52))
+        box.addView(icon(act, item, 52), LinearLayout.LayoutParams(Ui.dp(act, 52), Ui.dp(act, 52)).also {
+            it.gravity = Gravity.CENTER_HORIZONTAL
+        })
 
         val label = TextView(act)
         label.text = item.label
         label.setTextColor(Ui.TEXT)
         label.textSize = 13f
         label.gravity = Gravity.CENTER
-        label.maxLines = 2
+        label.setLines(2)
+        label.includeFontPadding = false
         label.ellipsize = TextUtils.TruncateAt.END
         label.setPadding(0, Ui.dp(act, 6), 0, 0)
         box.addView(label)
 
-        if (item.sub.isNotEmpty()) {
-            val sub = TextView(act)
-            sub.text = item.sub
-            sub.setTextColor(Ui.DIM)
-            sub.textSize = 11f
-            sub.gravity = Gravity.CENTER
-            sub.maxLines = 1
-            sub.ellipsize = TextUtils.TruncateAt.END
-            box.addView(sub)
-        }
+        // Ligne du sous-titre toujours réservée : toutes les tuiles ont la même hauteur (alignement).
+        val sub = TextView(act)
+        sub.text = item.sub
+        sub.setTextColor(Ui.DIM)
+        sub.textSize = 11f
+        sub.gravity = Gravity.CENTER
+        sub.setLines(1)
+        sub.ellipsize = TextUtils.TruncateAt.END
+        box.addView(sub)
         return box
     }
 }

@@ -115,7 +115,7 @@ object Ui {
                 MotionEvent.ACTION_DOWN -> {
                     view.isPressed = true
                     view.drawableHotspotChanged(event.x, event.y)
-                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    view.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                     fire(false)
                     loop.postDelayed(ticker, 450)
                 }

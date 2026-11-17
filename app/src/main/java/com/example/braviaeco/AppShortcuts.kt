@@ -577,11 +577,11 @@ object RoundButton {
         v.contentDescription = description
         v.isClickable = true
         v.setOnClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             onClick()
         }
         v.setOnLongClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            it.haptic(android.view.HapticFeedbackConstants.LONG_PRESS)
             onLongClick()
             true
         }

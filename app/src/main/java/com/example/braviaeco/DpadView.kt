@@ -184,7 +184,7 @@ class DpadView(
                 zone = z
                 holdTried = false
                 invalidate()
-                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                 fire(false)
                 if (z != CENTER) loop.postDelayed(ticker, 450)
             }

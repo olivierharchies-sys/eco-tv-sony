@@ -69,6 +69,19 @@
             android:label="Source"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
+        <!-- « Lire sur TV » depuis StreOli -->
+        <activity
+            android:name=".StreamLaunchActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="Lire sur TV"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="be.streoli.action.PLAY_ON_TV" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Widget 1 : modes d'économie d'énergie -->
         <receiver
             android:name=".EcoWidgetProvider"

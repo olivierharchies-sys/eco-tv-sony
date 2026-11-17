@@ -14,6 +14,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="false"
@@ -260,6 +261,11 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/dw_numpad_info" />
         </receiver>
+
+        <!-- Résultat de l'installation d'une mise à jour -->
+        <receiver
+            android:name=".UpdateReceiver"
+            android:exported="false" />
 
         <!-- Minuterie de veille -->
         <receiver

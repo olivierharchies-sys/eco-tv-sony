@@ -39,3 +39,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app-debug.apk
           git diff --cached --quiet || (git commit -m "APK compilé [skip ci]" && git push)
+
+      - name: Publier la release « latest »
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CODE=$(grep -oP 'versionCode = \K[0-9]+' app/build.gradle.kts)
+          cp app/build/outputs/apk/debug/app-debug.apk Eco-Tv-Sony.apk
+          gh release delete latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release create latest Eco-Tv-Sony.apk --repo "$GITHUB_REPOSITORY" \
+            --title "Eco-Tv-Sony v$CODE" --notes "Build ${GITHUB_SHA::7}" --target "$GITHUB_SHA"

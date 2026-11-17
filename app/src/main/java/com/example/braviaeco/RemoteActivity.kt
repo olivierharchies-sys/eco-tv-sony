@@ -342,7 +342,7 @@ class RemoteActivity : Activity() {
         t.maxLines = 1
         t.isClickable = true
         t.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             actions.selectTarget(target)
         }
         return t
@@ -372,7 +372,7 @@ class RemoteActivity : Activity() {
         power = PowerButton(this)
         power.contentDescription = "Marche / Arrêt"
         power.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             actions.togglePower()
         }
         bar.addView(power, LinearLayout.LayoutParams(dp(56), dp(56)))
@@ -400,7 +400,7 @@ class RemoteActivity : Activity() {
         texts.contentDescription = "Basculer entre la TV et le décodeur"
         texts.isClickable = true
         texts.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             toggleTarget()
         }
         var downX = 0f
@@ -413,7 +413,7 @@ class RemoteActivity : Activity() {
                     val dy = e.y - downY
                     if (Math.abs(dx) > dp(40) && Math.abs(dx) > Math.abs(dy)) {
                         v.isPressed = false
-                        v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        v.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                         toggleTarget()
                         return@setOnTouchListener true
                     }
@@ -430,7 +430,7 @@ class RemoteActivity : Activity() {
         history.contentDescription = "Historique"
         history.background = Ui.rounded(this, Color.TRANSPARENT, 22)
         history.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             shortcuts.showHistory()
         }
         bar.addView(history, LinearLayout.LayoutParams(dp(40), dp(40)))
@@ -441,14 +441,14 @@ class RemoteActivity : Activity() {
         mute.contentDescription = "Muet"
         mute.background = Ui.rounded(this, Color.TRANSPARENT, 22)
         mute.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             actions.sendKey("Mute")
         }
         muteBtn = mute
         paintMute()
         // Appui long : pause automatique de la TV pendant un appel (téléphone, WhatsApp…), reprise ensuite.
         mute.setOnLongClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            it.haptic(HapticFeedbackConstants.LONG_PRESS)
             val on = !CallPause.enabled(this)
             CallPause.setEnabled(this, on)
             paintMute()
@@ -468,7 +468,7 @@ class RemoteActivity : Activity() {
         edenwood.contentDescription = "Télécommande Edenwood"
         edenwood.background = Ui.rounded(this, Color.TRANSPARENT, 22)
         edenwood.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
             startActivity(Intent(this, EdenwoodRemoteActivity::class.java))
             finish()
@@ -522,7 +522,7 @@ class RemoteActivity : Activity() {
         // Appui long sur « VOL » : curseur de volume.
         if (label == "VOL") {
             text.setOnLongClickListener {
-                it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                it.haptic(HapticFeedbackConstants.LONG_PRESS)
                 actions.showVolume()
                 true
             }
@@ -563,7 +563,7 @@ class RemoteActivity : Activity() {
             b.contentDescription = description
             b.background = Ui.rounded(this, Color.TRANSPARENT, 24)
             b.setOnClickListener {
-                it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                 actions.key(key)
             }
             bar.addView(b, LinearLayout.LayoutParams(0, MATCH, 1f))
@@ -606,7 +606,7 @@ class RemoteActivity : Activity() {
         box.isClickable = true
         box.contentDescription = text
         box.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             onClick()
         }
         box.addView(icon(res, Ui.TEXT), LinearLayout.LayoutParams(dp(24), dp(24)))
@@ -629,7 +629,7 @@ class RemoteActivity : Activity() {
         box.background = Ui.rounded(this, Ui.SURFACE, 26)
         box.isClickable = true
         box.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             onClick()
         }
 

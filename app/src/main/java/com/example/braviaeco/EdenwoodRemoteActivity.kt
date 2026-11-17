@@ -279,7 +279,7 @@ class EdenwoodRemoteActivity : Activity() {
         row.isClickable = true
         row.background = Ui.rounded(this, Color.TRANSPARENT, 14)
         row.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             onClick()
         }
         val badge = TextView(this)
@@ -450,7 +450,7 @@ class EdenwoodRemoteActivity : Activity() {
         power = PowerButton(this)
         power.contentDescription = "Marche / Arrêt"
         power.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             togglePower()
         }
         bar.addView(power, LinearLayout.LayoutParams(dp(56), dp(56)))
@@ -477,7 +477,7 @@ class EdenwoodRemoteActivity : Activity() {
         // Historique : applications lancées récemment.
         val history = topIcon(R.drawable.ic_history, Ui.DIM, "Récemment")
         history.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             showRecent()
         }
         bar.addView(history, LinearLayout.LayoutParams(dp(44), dp(44)))
@@ -485,12 +485,12 @@ class EdenwoodRemoteActivity : Activity() {
         // Muet ; appui long : pause automatique pendant les appels.
         val mute = topIcon(R.drawable.ic_mute, Ui.DIM, "Muet")
         mute.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             actions.key("Mute")
         }
         muteBtn = mute
         mute.setOnLongClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            it.haptic(HapticFeedbackConstants.LONG_PRESS)
             val on = !CallPause.enabled(this)
             CallPause.setEnabled(this, on)
             paintMute()
@@ -507,7 +507,7 @@ class EdenwoodRemoteActivity : Activity() {
         // Passe à la télécommande Sony (le bouton est vert : c'est la couleur de l'autre télécommande).
         val switch = topIcon(R.drawable.ic_switch_remote, RemoteDesign.accent(this, false), "Télécommande Sony")
         switch.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             Prefs.saveRemoteDevice(this, Prefs.DEVICE_SONY)
             startActivity(Intent(this, RemoteActivity::class.java))
             finish()
@@ -570,7 +570,7 @@ class EdenwoodRemoteActivity : Activity() {
             b.contentDescription = description
             b.background = Ui.rounded(this, Color.TRANSPARENT, 24)
             b.setOnClickListener {
-                it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                 actions.key(key)
             }
             bar.addView(b, LinearLayout.LayoutParams(0, MATCH, 1f))
@@ -599,7 +599,7 @@ class EdenwoodRemoteActivity : Activity() {
         box.isClickable = true
         box.contentDescription = text
         box.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             onClick()
         }
         box.addView(icon(res, Ui.TEXT), LinearLayout.LayoutParams(dp(24), dp(24)))
@@ -622,7 +622,7 @@ class EdenwoodRemoteActivity : Activity() {
         box.background = Ui.rounded(this, Ui.SURFACE, 26)
         box.isClickable = true
         box.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             onClick()
         }
 

@@ -83,7 +83,7 @@ class GesturePadView(
     }
 
     private fun emit(action: String) {
-        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        haptic(HapticFeedbackConstants.VIRTUAL_KEY)
         val label = LABELS[action]
         if (label != null) {
             feedback = label

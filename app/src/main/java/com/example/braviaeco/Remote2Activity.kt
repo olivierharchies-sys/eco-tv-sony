@@ -277,7 +277,7 @@ class Remote2Activity : Activity() {
             view.background = Ui.rounded(this, Ui.SURFACE, 16)
             view.isClickable = true
             view.setOnClickListener {
-                it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                 tile.action()
             }
             val lp = LinearLayout.LayoutParams(dp(108), MATCH)
@@ -307,7 +307,7 @@ class Remote2Activity : Activity() {
         power = PowerButton(this)
         power.contentDescription = "Marche / Arrêt"
         power.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             actions.togglePower()
         }
         bar.addView(power, LinearLayout.LayoutParams(dp(56), dp(56)))
@@ -321,7 +321,7 @@ class Remote2Activity : Activity() {
         texts.isClickable = true
         texts.contentDescription = "Basculer entre la TV et le décodeur"
         texts.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             toggleTarget()
         }
 
@@ -349,11 +349,11 @@ class Remote2Activity : Activity() {
         apps.contentDescription = "Applications"
         apps.background = Ui.rounded(this, Color.TRANSPARENT, 22)
         apps.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             shortcuts.showAppsForTarget()
         }
         apps.setOnLongClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            it.haptic(HapticFeedbackConstants.LONG_PRESS)
             shortcuts.manageAppsForTarget()
             true
         }
@@ -396,12 +396,12 @@ class Remote2Activity : Activity() {
         box.isClickable = true
         box.contentDescription = text
         box.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             onClick()
         }
         if (onLong != null) {
             box.setOnLongClickListener {
-                it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                it.haptic(HapticFeedbackConstants.LONG_PRESS)
                 onLong()
                 true
             }

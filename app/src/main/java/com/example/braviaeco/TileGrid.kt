@@ -64,7 +64,7 @@ object TileGrid {
         if (neutral != null) builder.setNeutralButton(neutral.first) { _, _ -> neutral.second() }
         val dlg = builder.create()
         grid.setOnItemClickListener { _, v, pos, _ ->
-            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            v.haptic(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             dlg.dismiss()
             onPick(pos)
         }

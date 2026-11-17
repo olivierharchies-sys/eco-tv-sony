@@ -473,7 +473,7 @@ class TvActions(private val act: Activity) {
         )
         t.isClickable = true
         t.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             onClick()
         }
         val size = Ui.dp(act, 40)
@@ -512,7 +512,7 @@ class TvActions(private val act: Activity) {
         b.background = Ui.rounded(act, if (accent) Ui.ACCENT else Ui.SURFACE, 16)
         if (accent) b.setTextColor(android.graphics.Color.parseColor("#0E1014"))
         b.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             onClick()
         }
         b.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(act, 52)).also {
@@ -590,7 +590,7 @@ class TvActions(private val act: Activity) {
                     "OK" -> circleKey("OK", "", Ui.ACCENT, android.graphics.Color.parseColor("#0E1014")).also {
                         it.textSize = 20f
                         it.setOnClickListener { v ->
-                            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            v.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                             key("Confirm")
                             handler.removeCallbacks(reset)
                             handler.postDelayed(reset, 600)
@@ -604,7 +604,7 @@ class TvActions(private val act: Activity) {
                     }
                     else -> circleKey(label, letters[label] ?: "", Ui.SURFACE_HI, Ui.TEXT).also {
                         it.setOnClickListener { v ->
-                            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            v.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                             key("Num$label")
                             val shown = display.text.toString()
                             display.text = (if (shown.length >= 4) "" else shown) + label

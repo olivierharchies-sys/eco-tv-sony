@@ -11,7 +11,7 @@ android {
         applicationId = "com.example.braviaeco"
         minSdk = 24
         targetSdk = 34
-        versionCode = 55
+        versionCode = 56
         versionName = "2.43"
     }
 

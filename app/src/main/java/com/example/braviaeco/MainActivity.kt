@@ -72,7 +72,7 @@ class MainActivity : Activity() {
         cards.addAll(
             listOf(
                 WebCard(this), DeviceCard(this), EdenwoodCard(this),
-                RoomCard(this), PictureCard(this), BackupCard(this),
+                RoomCard(this), PictureCard(this), HapticCard(this), BackupCard(this),
                 UpdateCard(this)
             )
         )

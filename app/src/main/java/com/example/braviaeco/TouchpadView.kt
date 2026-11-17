@@ -70,12 +70,12 @@ class TouchpadView(
                         lastX = event.x
                     }
                     moved = true
-                    performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                    haptic(HapticFeedbackConstants.CLOCK_TICK)
                 }
             }
             MotionEvent.ACTION_UP -> {
                 if (!moved && abs(event.x - downX) < slop && abs(event.y - downY) < slop) {
-                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    haptic(HapticFeedbackConstants.VIRTUAL_KEY)
                     onKey("Confirm", false)
                 }
             }

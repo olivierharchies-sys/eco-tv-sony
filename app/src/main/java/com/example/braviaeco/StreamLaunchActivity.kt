@@ -19,7 +19,7 @@ class StreamLaunchActivity : Activity() {
 
         val validPkg = pkg.matches(Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z0-9_]+)+$"))
         val target = when {
-            link.startsWith("https://") -> link
+            link.startsWith("https://") || link.startsWith("nflx://") -> link
             validPkg -> pkg
             else -> ""
         }
@@ -62,10 +62,11 @@ class StreamLaunchActivity : Activity() {
         return order.firstOrNull { it.paired(this) && it.ip(this).isNotEmpty() }
     }
 
+    /** Télécommande (pas l'écran de configuration) : reprise si déjà ouverte, sinon créée. */
     private fun openRemote() {
         startActivity(
-            Intent(this, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            Intent(this, RemoteActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
         )
         finish()
     }

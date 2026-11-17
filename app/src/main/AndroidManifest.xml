@@ -74,6 +74,8 @@
             android:name=".StreamLaunchActivity"
             android:excludeFromRecents="true"
             android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity=""
             android:label="Lire sur TV"
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>

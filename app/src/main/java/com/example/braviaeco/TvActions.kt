@@ -336,7 +336,8 @@ class TvActions(private val act: Activity) {
             AtvDevice.TV -> "Texte à envoyer à la TV"
         }
         edit.setSingleLine(true)
-        edit.imeOptions = EditorInfo.IME_ACTION_SEND
+        // Pas de clavier plein écran en paysage : il remplace le champ et peut perdre l'action Entrée.
+        edit.imeOptions = EditorInfo.IME_ACTION_SEND or EditorInfo.IME_FLAG_NO_EXTRACT_UI
         edit.setTextColor(Ui.TEXT)
         edit.setHintTextColor(Ui.DIM)
 
@@ -401,12 +402,25 @@ class TvActions(private val act: Activity) {
             edit.text.clear()
             runIo { push(text).mapCatching { enter().getOrThrow() } }
         }
-        edit.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEND) {
-                sendEnter()
-                true
-            } else {
-                false
+        // Selon le clavier (Gboard, Samsung, clavier physique…), la touche Entrée arrive comme action « Envoyer »,
+        // « OK », « Aller », « Rechercher », ou comme simple touche Entrée sans action : toutes envoient le texte.
+        // Une touche Entrée produit un appui et un relâchement : seul l'appui compte, pour ne pas envoyer deux fois.
+        edit.setOnEditorActionListener { _, actionId, event ->
+            val isEnterKey = event != null && event.keyCode == android.view.KeyEvent.KEYCODE_ENTER
+            val isImeAction = actionId == EditorInfo.IME_ACTION_SEND ||
+                actionId == EditorInfo.IME_ACTION_DONE ||
+                actionId == EditorInfo.IME_ACTION_GO ||
+                actionId == EditorInfo.IME_ACTION_SEARCH
+            when {
+                isEnterKey -> {
+                    if (event!!.action == android.view.KeyEvent.ACTION_DOWN) sendEnter()
+                    true
+                }
+                isImeAction -> {
+                    sendEnter()
+                    true
+                }
+                else -> false
             }
         }
         // Balai (vide le champ de l'écran) et ⓧ (ferme) à droite du nom de l'appareil.

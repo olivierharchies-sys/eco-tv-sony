@@ -181,7 +181,8 @@ class RemoteActivity : Activity() {
         val extra = row(
             dp(48),
             labeled(R.drawable.ic_language, "Web") { actions.openWeb() },
-            labeled(R.drawable.ic_scene, "Scènes") { scenes.show() },
+            // Scènes : toujours accessibles via « Plus ».
+            labeled(R.drawable.ic_search, "Coller") { actions.pasteClipboard() },
             labeled(R.drawable.ic_apps, "Plus") { actions.openMore() }
         )
         (extra.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)

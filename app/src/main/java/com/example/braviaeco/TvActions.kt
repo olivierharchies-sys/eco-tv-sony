@@ -326,6 +326,32 @@ class TvActions(private val act: Activity) {
 
     // ------------------------------------------------------------------ clavier
 
+    /**
+     * Colle le texte du presse-papiers du téléphone (ex. titre copié par StreOli)
+     * dans le champ de saisie affiché à l'écran. Pas de touche Entrée : la recherche se fait en direct.
+     */
+    fun pasteClipboard() {
+        val cm = act.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val text = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(act)?.toString()
+            ?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim()?.take(120)
+        if (text.isNullOrEmpty()) {
+            Ui.toast(act, "Presse-papiers vide : copie d'abord un titre")
+            return
+        }
+        val device = if (Prefs.target(act) == Target.DECODER) AtvDevice.DECODER else AtvDevice.TV
+        val wifi = device.paired(act) && device.ip(act).isNotEmpty()
+        Ui.toast(act, "Collage de « $text »…")
+        runIo {
+            if (!wifi) {
+                BraviaClient.setText(act, text)
+            } else {
+                val letters = AtvRemote.typable(text)
+                if (letters.isEmpty()) Result.failure(IllegalStateException("Aucun caractère envoyable"))
+                else AtvRemote.type(act, "", letters, device)
+            }
+        }
+    }
+
     fun showKeyboard(forced: AtvDevice? = null) {
         // Le clavier suit l'appareil visé par la télécommande (TV ou décodeur), sauf appareil imposé.
         val device = forced ?: if (Prefs.target(act) == Target.DECODER) AtvDevice.DECODER else AtvDevice.TV

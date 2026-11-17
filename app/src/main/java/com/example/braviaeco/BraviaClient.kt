@@ -417,6 +417,7 @@ object BraviaClient {
             "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">" +
             "<s:Body><u:X_SendIRCC xmlns:u=\"urn:schemas-sony-com:service:IRCC:1\">" +
             "<IRCCCode>$code</IRCCCode></u:X_SendIRCC></s:Body></s:Envelope>"
+        val bodyBytes = body.toByteArray(Charsets.UTF_8)
 
         // Une touche n'est renvoyée que si la connexion elle-même a échoué (rien n'est parti) :
         // jamais de double appui.
@@ -429,27 +430,33 @@ object BraviaClient {
                 conn.connectTimeout = 2500
                 conn.readTimeout = 5000
                 conn.doOutput = true
+                // Taille connue : le corps part d'un seul bloc, sans mise en mémoire tampon ni envoi fragmenté.
+                conn.setFixedLengthStreamingMode(bodyBytes.size)
                 conn.setRequestProperty("Content-Type", "text/xml; charset=UTF-8")
                 conn.setRequestProperty("SOAPACTION", IRCC_ACTION)
                 if (psk.isNotEmpty()) conn.setRequestProperty("X-Auth-PSK", psk)
                 try {
                     conn.connect()
                 } catch (e: java.io.IOException) {
+                    conn.disconnect()
                     if (attempt < 2) {
                         Thread.sleep(250)
                         continue
                     }
                     error("TV injoignable (Wi-Fi du téléphone ? TV en veille ?)")
                 }
-                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                conn.outputStream.use { it.write(bodyBytes) }
 
                 val status = conn.responseCode
                 if (status == 403) error("Accès refusé : vérifie la clé PSK sur la TV")
                 if (status !in 200..299) error("Erreur HTTP $status")
+                // Réponse lue en entier puis flux fermé (sans disconnect) : la connexion est remise en
+                // réserve et réutilisée par la touche suivante au lieu de rouvrir une connexion TCP à chaque cran.
                 conn.inputStream.use { it.readBytes() }
                 return
-            } finally {
+            } catch (e: Exception) {
                 conn.disconnect()
+                throw e
             }
         }
     }

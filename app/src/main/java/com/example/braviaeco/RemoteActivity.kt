@@ -169,10 +169,8 @@ class RemoteActivity : Activity() {
             dp(48),
             labeled(R.drawable.ic_keyboard, "Clavier") { actions.showKeyboard() },
             labeled(R.drawable.ic_dialpad, "Chiffres") { actions.showNumpad() },
-            labeled(R.drawable.ic_touch, "Tactile") {
-                Prefs.saveTouchpad(this, !Prefs.touchpad(this))
-                applyPadMode()
-            }
+            // Pavé tactile : désormais dans « Plus ».
+            labeled(R.drawable.ic_play, "StreOli") { actions.openStreOli() }
         )
         (bottom.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
         root.addView(bottom)
@@ -206,6 +204,7 @@ class RemoteActivity : Activity() {
             return
         }
         Ui.useRemoteDesign(this, false)
+        applyPadMode() // le choix tactile peut avoir changé dans « Plus »
         if (RoomSwitch.pick(this) == Prefs.DEVICE_EDENWOOD) {
             Prefs.saveRemoteDevice(this, Prefs.DEVICE_EDENWOOD)
             startActivity(Intent(this, EdenwoodRemoteActivity::class.java))

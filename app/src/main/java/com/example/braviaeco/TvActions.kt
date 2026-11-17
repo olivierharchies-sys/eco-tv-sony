@@ -352,6 +352,19 @@ class TvActions(private val act: Activity) {
         }
     }
 
+    /** Ouvre StreOli sur le téléphone, à la dernière page affichée (tâche reprise telle quelle). */
+    fun openStreOli() {
+        val i = Intent(Intent.ACTION_MAIN)
+            .addCategory(Intent.CATEGORY_LAUNCHER)
+            .setPackage("be.streoli.app")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+        try {
+            act.startActivity(i)
+        } catch (_: android.content.ActivityNotFoundException) {
+            Ui.toast(act, "StreOli n'est pas installé")
+        }
+    }
+
     fun showKeyboard(forced: AtvDevice? = null) {
         // Le clavier suit l'appareil visé par la télécommande (TV ou décodeur), sauf appareil imposé.
         val device = forced ?: if (Prefs.target(act) == Target.DECODER) AtvDevice.DECODER else AtvDevice.TV

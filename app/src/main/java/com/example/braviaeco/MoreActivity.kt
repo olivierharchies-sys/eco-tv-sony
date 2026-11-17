@@ -43,6 +43,14 @@ class MoreActivity : Activity() {
         sub.setPadding(0, dp(2), 0, dp(10))
         list.addView(sub)
 
+        add(
+            list,
+            "Pavé tactile",
+            if (Prefs.touchpad(this)) "Activé : glisser pour naviguer (toucher pour changer)" else "Désactivé : croix directionnelle (toucher pour changer)",
+        ) {
+            Prefs.saveTouchpad(this, !Prefs.touchpad(this))
+            Ui.toast(this, if (Prefs.touchpad(this)) "Pavé tactile activé" else "Croix directionnelle activée")
+        }
         add(list, "Applications de la TV", "Lancer YouTube, Netflix, un navigateur…") { showApps() }
         add(list, "Toutes les touches", "Chaque touche de télécommande connue de la TV") { showKeys() }
         add(list, "Volume précis", "Régler le volume avec un curseur") { showVolume() }

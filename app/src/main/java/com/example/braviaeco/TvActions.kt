@@ -71,9 +71,13 @@ class TvActions(private val act: Activity) {
         }
     }
 
-    /** Exécute un appel réseau dans l'ordre. skipIfBusy : ignoré si le précédent n'est pas fini (répétitions). */
+    /**
+     * Exécute un appel réseau dans l'ordre. skipIfBusy : pour les répétitions, ignoré si deux appels sont déjà
+     * en attente (un en cours + un suivant prêt). Garder un appel d'avance évite le « temps mort » entre deux
+     * touches qui rendait la croix saccadée, sans pour autant empiler les répétitions.
+     */
     fun runIo(skipIfBusy: Boolean = false, work: () -> Result<*>) {
-        if (skipIfBusy && pending.get() > 0) return
+        if (skipIfBusy && pending.get() > 1) return
         pending.incrementAndGet()
         try {
             io.execute(Runnable {

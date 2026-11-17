@@ -112,6 +112,9 @@ object AtvRemote {
         val s = AtvTls.context(ctx, device, enforce).socketFactory.createSocket() as SSLSocket
         try {
             s.connect(InetSocketAddress(ip, port), 3000)
+            // Chaque touche est un petit message : sans cela, l'algorithme de Nagle peut le retenir
+            // quelques dizaines de ms avant l'envoi, ce qui rend les déplacements saccadés.
+            s.tcpNoDelay = true
             s.soTimeout = 8000
             s.startHandshake()
             s.soTimeout = readTimeoutMs

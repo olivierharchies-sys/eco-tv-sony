@@ -338,8 +338,17 @@ class TvActions(private val act: Activity) {
             Ui.toast(act, "Presse-papiers vide : copie d'abord un titre")
             return
         }
-        val device = if (Prefs.target(act) == Target.DECODER) AtvDevice.DECODER else AtvDevice.TV
+        pasteText(text)
+    }
+
+    /** Tape [text] dans le champ de saisie affiché sur la TV (ou le décodeur visé). */
+    fun pasteText(text: String, forced: AtvDevice? = null) {
+        val device = forced ?: remoteDevice()
         val wifi = device.paired(act) && device.ip(act).isNotEmpty()
+        if (!wifi && device == AtvDevice.EDENWOOD) {
+            Ui.toast(act, "Edenwood non associée (Réglages d'Éco TV)")
+            return
+        }
         Ui.toast(act, "Collage de « $text »…")
         runIo {
             if (!wifi) {
@@ -364,6 +373,9 @@ class TvActions(private val act: Activity) {
             Ui.toast(act, "StreOli n'est pas installé")
         }
     }
+
+    /** Appareil Sony visé par la télécommande (TV ou décodeur). */
+    fun remoteDevice(): AtvDevice = if (Prefs.target(act) == Target.DECODER) AtvDevice.DECODER else AtvDevice.TV
 
     fun showKeyboard(forced: AtvDevice? = null) {
         // Le clavier suit l'appareil visé par la télécommande (TV ou décodeur), sauf appareil imposé.

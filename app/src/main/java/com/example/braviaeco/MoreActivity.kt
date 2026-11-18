@@ -51,6 +51,15 @@ class MoreActivity : Activity() {
             Prefs.saveTouchpad(this, !Prefs.touchpad(this))
             Ui.toast(this, if (Prefs.touchpad(this)) "Pavé tactile activé" else "Croix directionnelle activée")
         }
+        add(list, "Recherche vocale StreOli", "Dicter un titre, un acteur… (ou appui long sur « StreOli »)") {
+            Voice.start(this, Voice.STREOLI)
+        }
+        add(list, "Ma liste StreOli", "Ouvrir une fiche de ta liste sur la TV, le décodeur ou la Edenwood") {
+            StreOliLink.showWatchlist(this, actions.remoteDevice())
+        }
+        add(list, "Dicter à la TV", "Taper à la voix dans le champ de la TV (ou appui long sur « Coller »)") {
+            Voice.start(this, Voice.TV)
+        }
         add(list, "Applications de la TV", "Lancer YouTube, Netflix, un navigateur…") { showApps() }
         add(list, "Toutes les touches", "Chaque touche de télécommande connue de la TV") { showKeys() }
         add(list, "Volume précis", "Régler le volume avec un curseur") { showVolume() }
@@ -71,6 +80,12 @@ class MoreActivity : Activity() {
         scroll.setBackgroundColor(Ui.BG)
         scroll.addView(list)
         setContentView(scroll)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!Voice.handle(this, actions, requestCode, resultCode, data)) {
+            super.onActivityResult(requestCode, resultCode, data)
+        }
     }
 
     override fun onDestroy() {

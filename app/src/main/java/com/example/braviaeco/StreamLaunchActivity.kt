@@ -20,6 +20,8 @@ class StreamLaunchActivity : Activity() {
         val validPkg = pkg.matches(Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z0-9_]+)+$"))
         val target = when {
             link.startsWith("https://") || link.startsWith("nflx://") -> link
+            // Fiche ou recherche StreOli ouverte dans StreOli sur l'appareil.
+            link.matches(Regex("^streoli://(title/(movie|tv)/\\d+|search\\?q=[^\\s]*)$")) -> link
             validPkg -> pkg
             else -> ""
         }
@@ -31,7 +33,14 @@ class StreamLaunchActivity : Activity() {
 
         // Même logique que la télécommande : la pièce détectée décide de la TV visée.
         RoomSwitch.pick(this)?.let { Prefs.saveRemoteDevice(this, it) }
-        val device = pickDevice()
+        // Appareil imposé par StreOli (« tv », « decoder », « edenwood »), sinon celui de la pièce.
+        val wanted = when (intent.getStringExtra(EXTRA_DEVICE)) {
+            "tv" -> AtvDevice.TV
+            "decoder" -> AtvDevice.DECODER
+            "edenwood" -> AtvDevice.EDENWOOD
+            else -> null
+        }?.takeIf { it.paired(this) && it.ip(this).isNotEmpty() }
+        val device = wanted ?: pickDevice()
         if (device == null) {
             Ui.toast(this, "Aucun appareil Android TV associé (Réglages d'Éco TV)")
             openRemote()
@@ -76,5 +85,6 @@ class StreamLaunchActivity : Activity() {
         const val EXTRA_LINK = "link"
         const val EXTRA_PACKAGE = "package"
         const val EXTRA_TITLE = "title"
+        const val EXTRA_DEVICE = "device"
     }
 }

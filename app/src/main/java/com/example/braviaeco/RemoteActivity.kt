@@ -170,7 +170,8 @@ class RemoteActivity : Activity() {
             labeled(R.drawable.ic_keyboard, "Clavier") { actions.showKeyboard() },
             labeled(R.drawable.ic_dialpad, "Chiffres") { actions.showNumpad() },
             // Pavé tactile : désormais dans « Plus ».
-            labeled(R.drawable.ic_play, "StreOli") { actions.openStreOli() }
+            // Appui long : recherche vocale dans StreOli.
+            labeled(R.drawable.ic_play, "StreOli", { Voice.start(this, Voice.STREOLI) }) { actions.openStreOli() }
         )
         (bottom.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
         root.addView(bottom)
@@ -180,7 +181,8 @@ class RemoteActivity : Activity() {
             dp(48),
             labeled(R.drawable.ic_language, "Web") { actions.openWeb() },
             // Scènes : toujours accessibles via « Plus ».
-            labeled(R.drawable.ic_search, "Coller") { actions.pasteClipboard() },
+            // Appui long : dicter le texte à la TV.
+            labeled(R.drawable.ic_search, "Coller", { Voice.start(this, Voice.TV) }) { actions.pasteClipboard() },
             labeled(R.drawable.ic_apps, "Plus") { actions.openMore() }
         )
         (extra.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
@@ -260,6 +262,12 @@ class RemoteActivity : Activity() {
             }
         } catch (e: RejectedExecutionException) {
             // activité fermée
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!Voice.handle(this, actions, requestCode, resultCode, data)) {
+            super.onActivityResult(requestCode, resultCode, data)
         }
     }
 
@@ -622,7 +630,7 @@ class RemoteActivity : Activity() {
     }
 
     /** Bouton « pilule » : icône + libellé. */
-    private fun labeled(res: Int, text: String, onClick: () -> Unit): LinearLayout {
+    private fun labeled(res: Int, text: String, onLong: (() -> Unit)? = null, onClick: () -> Unit): LinearLayout {
         val box = LinearLayout(this)
         box.orientation = LinearLayout.HORIZONTAL
         box.gravity = Gravity.CENTER
@@ -631,6 +639,13 @@ class RemoteActivity : Activity() {
         box.setOnClickListener {
             it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             onClick()
+        }
+        if (onLong != null) {
+            box.setOnLongClickListener {
+                it.haptic(HapticFeedbackConstants.LONG_PRESS)
+                onLong()
+                true
+            }
         }
 
         box.addView(icon(res, Ui.TEXT), LinearLayout.LayoutParams(dp(22), dp(22)))

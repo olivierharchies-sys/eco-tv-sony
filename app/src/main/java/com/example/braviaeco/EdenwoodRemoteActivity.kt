@@ -119,7 +119,8 @@ class EdenwoodRemoteActivity : Activity() {
         // --- Clavier, chiffres, tactile
         val bottom = row(
             dp(48),
-            labeled(R.drawable.ic_keyboard, "Clavier") { actions.showKeyboard(device) },
+            // Appui long : dicter le texte à la Edenwood.
+            labeled(R.drawable.ic_keyboard, "Clavier", { Voice.start(this, Voice.TV, device) }) { actions.showKeyboard(device) },
             labeled(R.drawable.ic_dialpad, "Chiffres") { actions.showNumpad(favorites = false) },
             labeled(R.drawable.ic_touch, "Tactile") {
                 Prefs.saveTouchpad(this, !Prefs.touchpad(this))
@@ -133,7 +134,8 @@ class EdenwoodRemoteActivity : Activity() {
         val extra = row(
             dp(48),
             labeled(R.drawable.ic_language, "Web") { openWeb() },
-            labeled(R.drawable.ic_search, "Recherche") { actions.key("Search") },
+            // Appui long : recherche vocale dans StreOli.
+            labeled(R.drawable.ic_search, "Recherche", { Voice.start(this, Voice.STREOLI, device) }) { actions.key("Search") },
             labeled(R.drawable.ic_apps, "Plus") { showMore() }
         )
         (extra.layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
@@ -181,6 +183,12 @@ class EdenwoodRemoteActivity : Activity() {
         // Les autres écrans (réglages…) gardent leur palette verte.
         Ui.useBlueTheme(false)
         super.onPause()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!Voice.handle(this, actions, requestCode, resultCode, data)) {
+            super.onActivityResult(requestCode, resultCode, data)
+        }
     }
 
     override fun onDestroy() {
@@ -350,8 +358,16 @@ class EdenwoodRemoteActivity : Activity() {
             "Rouge" to "Red", "Vert" to "Green", "Jaune" to "Yellow", "Bleu" to "Blue",
             "Infos" to "Info", "Guide" to "Guide", "Stop" to "Stop", "Réglages de la TV" to "Settings"
         )
+        val labels = listOf("Recherche vocale StreOli", "Dicter à la Edenwood", "Ma liste StreOli") + keys.map { it.first }
         dialog().setTitle("Autres touches")
-            .setItems(keys.map { it.first }.toTypedArray()) { _, i -> actions.key(keys[i].second) }
+            .setItems(labels.toTypedArray()) { _, i ->
+                when (i) {
+                    0 -> Voice.start(this, Voice.STREOLI, device)
+                    1 -> Voice.start(this, Voice.TV, device)
+                    2 -> StreOliLink.showWatchlist(this, device)
+                    else -> actions.key(keys[i - 3].second)
+                }
+            }
             .setNegativeButton("Fermer", null)
             .show()
     }
@@ -615,7 +631,7 @@ class EdenwoodRemoteActivity : Activity() {
     }
 
     /** Bouton « pilule » : icône + libellé. */
-    private fun labeled(res: Int, text: String, onClick: () -> Unit): LinearLayout {
+    private fun labeled(res: Int, text: String, onLong: (() -> Unit)? = null, onClick: () -> Unit): LinearLayout {
         val box = LinearLayout(this)
         box.orientation = LinearLayout.HORIZONTAL
         box.gravity = Gravity.CENTER
@@ -624,6 +640,13 @@ class EdenwoodRemoteActivity : Activity() {
         box.setOnClickListener {
             it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
             onClick()
+        }
+        if (onLong != null) {
+            box.setOnLongClickListener {
+                it.haptic(HapticFeedbackConstants.LONG_PRESS)
+                onLong()
+                true
+            }
         }
 
         box.addView(icon(res, Ui.TEXT), LinearLayout.LayoutParams(dp(22), dp(22)))

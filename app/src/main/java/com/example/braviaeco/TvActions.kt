@@ -363,14 +363,22 @@ class TvActions(private val act: Activity) {
 
     /** Ouvre StreOli sur le téléphone, à la dernière page affichée (tâche reprise telle quelle). */
     fun openStreOli() {
-        val i = Intent(Intent.ACTION_MAIN)
-            .addCategory(Intent.CATEGORY_LAUNCHER)
-            .setPackage("be.streoli.app")
+        val pm = act.packageManager
+        // 1) Intent de lancement fourni par Android ; 2) activité explicite en secours.
+        val i = (pm.getLaunchIntentForPackage(StreOliLink.PKG)
+            ?: Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_LAUNCHER)
+                .setClassName(StreOliLink.PKG, "${StreOliLink.PKG}.MainActivity"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
         try {
             act.startActivity(i)
-        } catch (_: android.content.ActivityNotFoundException) {
-            Ui.toast(act, "StreOli n'est pas installé")
+        } catch (e: Exception) {
+            val installed = runCatching { pm.getPackageInfo(StreOliLink.PKG, 0) }.isSuccess
+            Ui.toast(
+                act,
+                if (installed) "StreOli refuse l'ouverture : ${e.javaClass.simpleName}"
+                else "StreOli introuvable sur ce téléphone",
+            )
         }
     }
 

@@ -386,9 +386,17 @@ class Remote2Activity : Activity() {
         swap.setColorFilter(Ui.DIM)
         swap.scaleType = ImageView.ScaleType.FIT_CENTER
         swap.setPadding(dp(10), dp(10), dp(10), dp(10))
-        swap.contentDescription = "Télécommande classique"
+        swap.contentDescription = "Télécommande perso (appui long : choisir)"
         swap.background = Ui.rounded(this, Color.TRANSPARENT, 22)
-        swap.setOnClickListener { switchToClassic() }
+        swap.setOnClickListener {
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+            RemotePicker.openCustom(this)
+        }
+        swap.setOnLongClickListener {
+            it.haptic(HapticFeedbackConstants.LONG_PRESS)
+            RemotePicker.show(this)
+            true
+        }
         bar.addView(swap, LinearLayout.LayoutParams(dp(44), dp(44)))
 
         return bar

@@ -41,6 +41,7 @@ class CustomRemoteActivity : Activity() {
     private lateinit var guides: GuideView
     private lateinit var editBar: LinearLayout
     private lateinit var editBtn: ImageView
+    private var muteBtn: ImageView? = null
     private lateinit var snapBtn: TextView
     private lateinit var power: PowerButton
     private lateinit var title: TextView
@@ -111,6 +112,7 @@ class CustomRemoteActivity : Activity() {
         }
         RoomSwitch.follow(this) { if (it == Prefs.DEVICE_EDENWOOD) toEdenwood() }
         renderState()
+        paintMute()
         actions.refreshPower()
         actions.startSourceWatch()
         if (CallPause.enabled(this)) CallPause.apply(this)
@@ -220,18 +222,64 @@ class CustomRemoteActivity : Activity() {
         subtitle.textSize = 13f
         subtitle.maxLines = 1
         texts.addView(subtitle, LinearLayout.LayoutParams(MATCH, dp(18)))
+        // Toucher ou glisser sur le titre : bascule TV / décodeur (comme la classique).
+        texts.contentDescription = "Basculer entre la TV et le décodeur"
         texts.isClickable = true
         texts.setOnClickListener {
             it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
-            actions.selectTarget(if (Prefs.target(this) == Target.DECODER) Target.TV else Target.DECODER)
+            toggleTarget()
+        }
+        var downX = 0f
+        var downY = 0f
+        texts.setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y }
+                MotionEvent.ACTION_UP -> {
+                    val dx = e.x - downX
+                    val dy = e.y - downY
+                    if (abs(dx) > dp(40) && abs(dx) > abs(dy)) {
+                        v.isPressed = false
+                        v.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+                        toggleTarget()
+                        return@setOnTouchListener true
+                    }
+                }
+            }
+            false
         }
         bar.addView(texts, LinearLayout.LayoutParams(0, WRAP, 1f))
 
+        // Muet ; appui long : pause automatique de la TV pendant un appel (vert = activée).
         val mute = barIcon(R.drawable.ic_mute, "Muet") { actions.sendKey("Mute") }
-        bar.addView(mute, LinearLayout.LayoutParams(dp(40), dp(40)))
+        mute.setOnLongClickListener {
+            it.haptic(HapticFeedbackConstants.LONG_PRESS)
+            val on = !CallPause.enabled(this)
+            CallPause.setEnabled(this, on)
+            paintMute()
+            if (on && android.os.Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 7)
+            }
+            Ui.toast(this, if (on) "Pause auto pendant les appels : activée" else "Pause auto pendant les appels : désactivée")
+            true
+        }
+        muteBtn = mute
+        bar.addView(mute, LinearLayout.LayoutParams(dp(38), dp(38)))
+
+        // Passe à la télécommande Edenwood (couleur de l'autre télécommande).
+        val edenwood = barIcon(R.drawable.ic_switch_remote, "Télécommande Edenwood") { toEdenwood() }
+        edenwood.setColorFilter(RemoteDesign.accent(this, true))
+        bar.addView(edenwood, LinearLayout.LayoutParams(dp(38), dp(38)))
+
+        // Changer de télécommande (classique, Zen, autres perso).
+        val swap = barIcon(R.drawable.ic_swap, "Changer de télécommande") {
+            RemotePicker.show(this, remoteId) { id -> openRemote(id) }
+        }
+        bar.addView(swap, LinearLayout.LayoutParams(dp(38), dp(38)))
 
         editBtn = barIcon(R.drawable.ic_touch, "Modifier la disposition") { setEditing(!editing) }
-        bar.addView(editBtn, LinearLayout.LayoutParams(dp(40), dp(40)))
+        bar.addView(editBtn, LinearLayout.LayoutParams(dp(38), dp(38)))
 
         val menu = barIcon(R.drawable.ic_settings, "Menu") { showMenu() }
         // Appui long : changer de télécommande perso.
@@ -240,14 +288,14 @@ class CustomRemoteActivity : Activity() {
             pickRemote()
             true
         }
-        bar.addView(menu, LinearLayout.LayoutParams(dp(40), dp(40)))
+        bar.addView(menu, LinearLayout.LayoutParams(dp(38), dp(38)))
         return bar
     }
 
     /** Icône de la barre du haut, comme sur la classique. */
     private fun barIcon(res: Int, desc: String, onClick: () -> Unit): ImageView {
         val v = icon(res, Ui.DIM)
-        v.setPadding(dp(9), dp(9), dp(9), dp(9))
+        v.setPadding(dp(8), dp(8), dp(8), dp(8))
         v.contentDescription = desc
         v.background = Ui.rounded(this, Color.TRANSPARENT, 22)
         v.setOnClickListener {
@@ -255,6 +303,17 @@ class CustomRemoteActivity : Activity() {
             onClick()
         }
         return v
+    }
+
+    private fun toggleTarget() {
+        actions.selectTarget(if (Prefs.target(this) == Target.DECODER) Target.TV else Target.DECODER)
+    }
+
+    /** Muet vert = pause automatique pendant les appels activée. */
+    private fun paintMute() {
+        val on = CallPause.enabled(this)
+        muteBtn?.setColorFilter(if (on) Ui.ACCENT else Ui.DIM)
+        muteBtn?.contentDescription = if (on) "Muet (pause auto des appels activée)" else "Muet"
     }
 
     private fun showMenu() {
@@ -1004,6 +1063,51 @@ class CustomRemoteActivity : Activity() {
         const val RESIZE_W = 2
         const val RESIZE_H = 3
         const val RESIZE_BOTH = 4
+    }
+}
+
+/** Choix de la télécommande : classique, Zen ou l'une des perso. */
+object RemotePicker {
+
+    /** Ouvre directement la télécommande perso (la dernière utilisée). */
+    fun openCustom(act: Activity) {
+        Prefs.saveRemoteStyle(act, Prefs.STYLE_CUSTOM)
+        act.startActivity(Intent(act, CustomRemoteActivity::class.java))
+        act.finish()
+    }
+
+    /**
+     * Liste : Classique, Zen, puis chaque télécommande perso. [currentPerso] et [onPerso] : appelé depuis
+     * une télécommande perso, pour changer de disposition sans relancer l'écran.
+     */
+    fun show(act: Activity, currentPerso: String? = null, onPerso: ((String) -> Unit)? = null) {
+        val ids = CustomRemotes.ids(act)
+        val labels = listOf("Classique", "Zen (gestes)") +
+            ids.map { (if (it == currentPerso) "● " else "") + "Perso : " + CustomRemotes.name(act, it) }
+        AlertDialog.Builder(act, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("Télécommande")
+            .setItems(labels.toTypedArray()) { _, which ->
+                when (which) {
+                    0 -> go(act, Prefs.STYLE_CLASSIC, RemoteActivity::class.java)
+                    1 -> go(act, Prefs.STYLE_ZEN, Remote2Activity::class.java)
+                    else -> {
+                        val id = ids[which - 2]
+                        if (onPerso != null) {
+                            onPerso(id)
+                        } else {
+                            CustomRemotes.setCurrent(act, id)
+                            openCustom(act)
+                        }
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun go(act: Activity, style: String, cls: Class<*>) {
+        Prefs.saveRemoteStyle(act, style)
+        act.startActivity(Intent(act, cls))
+        act.finish()
     }
 }
 

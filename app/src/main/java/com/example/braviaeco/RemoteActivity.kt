@@ -1,7 +1,6 @@
 package com.example.braviaeco
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
@@ -495,18 +494,16 @@ class RemoteActivity : Activity() {
 
         val swap = icon(R.drawable.ic_swap, Ui.DIM)
         swap.setPadding(dp(9), dp(9), dp(9), dp(9))
-        swap.contentDescription = "Changer de télécommande"
+        swap.contentDescription = "Télécommande perso (appui long : choisir)"
         swap.background = Ui.rounded(this, Color.TRANSPARENT, 22)
         swap.setOnClickListener {
-            AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-                .setTitle("Télécommande")
-                .setItems(arrayOf("Zen (gestes)", "Perso (boutons déplaçables)")) { _, which ->
-                    val zen = which == 0
-                    Prefs.saveRemoteStyle(this, if (zen) Prefs.STYLE_ZEN else Prefs.STYLE_CUSTOM)
-                    startActivity(Intent(this, if (zen) Remote2Activity::class.java else CustomRemoteActivity::class.java))
-                    finish()
-                }
-                .show()
+            it.haptic(HapticFeedbackConstants.VIRTUAL_KEY)
+            RemotePicker.openCustom(this)
+        }
+        swap.setOnLongClickListener {
+            it.haptic(HapticFeedbackConstants.LONG_PRESS)
+            RemotePicker.show(this)
+            true
         }
         bar.addView(swap, LinearLayout.LayoutParams(dp(40), dp(40)))
 

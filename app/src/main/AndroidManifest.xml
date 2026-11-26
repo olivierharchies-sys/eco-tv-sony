@@ -64,7 +64,7 @@
             android:name=".CustomRemoteActivity"
             android:exported="false"
             android:label="Télécommande perso"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="fullUser" />
 
         <activity
             android:name=".PictureSettingsActivity"

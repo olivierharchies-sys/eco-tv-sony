@@ -113,8 +113,10 @@ class TvActions(private val act: Activity) {
      */
     fun key(vararg names: String, repeat: Boolean = false) {
         customKey?.let { it(names, repeat); return }
-        val toDecoder = Prefs.target(act) == Target.DECODER && names.first() !in TV_ONLY
         runIo(repeat) {
+            // Après un moment sans relecture, on vérifie la source avant la touche (cible à jour).
+            if (!repeat) freshenTarget()
+            val toDecoder = Prefs.target(act) == Target.DECODER && names.first() !in TV_ONLY
             if (toDecoder) Decoder.sendKey(act, *names) else BraviaClient.sendIrcc(act, *names)
         }
     }
@@ -159,7 +161,26 @@ class TvActions(private val act: Activity) {
     @Volatile
     private var watching = false
 
+    /** Dernière lecture de la source (elapsedRealtime). */
+    @Volatile
+    private var lastSourceRead = 0L
+
+    /** Relit la source si la dernière lecture date de plus de [FRESH_MS] (appelé avant une touche). */
+    private fun freshenTarget() {
+        if (!watching || Prefs.lastPower(act) != true || ShortcutPrefs.decoderInputUri(act).isEmpty()) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastSourceRead < FRESH_MS) return
+        lastSourceRead = now
+        val uri = BraviaClient.syncSource(act).getOrNull() ?: return
+        if (syncTarget(uri)) {
+            PowerWidgetProvider.refreshAll(act)
+            SourceWidgetProvider.refreshAll(act)
+            ui.post { onStateChanged?.invoke() }
+        }
+    }
+
     /** Cible = décodeur si la TV affiche son entrée HDMI, sinon TV. Renvoie true si la cible a changé. */
+    @Synchronized
     private fun syncTarget(uri: String): Boolean {
         val decoderUri = ShortcutPrefs.decoderInputUri(act)
         if (decoderUri.isEmpty() || uri == lastInput) return false
@@ -177,6 +198,7 @@ class TvActions(private val act: Activity) {
                 if (ShortcutPrefs.decoderInputUri(act).isNotEmpty() &&
                     BraviaClient.getPowerOn(act).getOrNull() == true
                 ) {
+                    lastSourceRead = android.os.SystemClock.elapsedRealtime()
                     val uri = BraviaClient.syncSource(act).getOrNull()
                     if (uri != null && syncTarget(uri)) {
                         PowerWidgetProvider.refreshAll(act)
@@ -258,6 +280,7 @@ class TvActions(private val act: Activity) {
                     val auto = Picture.autoApply(act)
                     if (auto != null) ui.post { Ui.toast(act, "Image : $auto") }
                     lastInput = null // ouverture : on recale toujours la cible
+                    lastSourceRead = android.os.SystemClock.elapsedRealtime()
                     syncTarget(uri)
                 }
             }
@@ -754,5 +777,6 @@ class TvActions(private val act: Activity) {
         private const val SYNC_RETRY_MS = 5000L
         private const val SOURCE_WATCH_MS = 6000L
         private const val SOURCE_POKE_MS = 2000L
+        private const val FRESH_MS = 10_000L
     }
 }

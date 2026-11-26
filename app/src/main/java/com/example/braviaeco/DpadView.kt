@@ -32,6 +32,15 @@ class DpadView(
 
     private val loop = Handler(Looper.getMainLooper())
 
+    /** Petit libellé sous « OK » : appareil visé (« TV », « DÉCODEUR »), ou null. */
+    var badge: String? = null
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidate()
+            }
+        }
+
     private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val hiPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val sepPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -127,7 +136,17 @@ class DpadView(
         arrow(canvas, cx - mid, cy, s, 270f)
 
         textPaint.textSize = inner * 0.55f
-        canvas.drawText("OK", cx, cy + textPaint.textSize * 0.35f, textPaint)
+        val b = badge
+        if (b.isNullOrEmpty()) {
+            canvas.drawText("OK", cx, cy + textPaint.textSize * 0.35f, textPaint)
+        } else {
+            // Appareil visé sous « OK » (TV ou décodeur).
+            canvas.drawText("OK", cx, cy + textPaint.textSize * 0.05f, textPaint)
+            val size = textPaint.textSize
+            textPaint.textSize = inner * 0.26f
+            canvas.drawText(b, cx, cy + inner * 0.48f, textPaint)
+            textPaint.textSize = size
+        }
     }
 
     private fun arrow(canvas: Canvas, x: Float, y: Float, s: Float, rotation: Float) {

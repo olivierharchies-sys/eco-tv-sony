@@ -8,6 +8,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
 import android.graphics.Paint
+import android.graphics.PointF
+import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
@@ -39,21 +41,26 @@ class CustomRemoteActivity : Activity() {
     private lateinit var shortcuts: AppShortcuts
     private lateinit var board: FrameLayout
     private lateinit var guides: GuideView
-    private lateinit var editBar: LinearLayout
+    private lateinit var editBar: View
     private lateinit var editBtn: ImageView
     private var muteBtn: ImageView? = null
     private lateinit var snapBtn: TextView
+    private lateinit var gridBtn: TextView
+    private lateinit var undoBtn: TextView
+    private lateinit var redoBtn: TextView
     private lateinit var power: PowerButton
     private lateinit var title: TextView
     private lateinit var subtitle: TextView
     private var segTv: TextView? = null
     private var segDecoder: TextView? = null
     private var chLabel: TextView? = null
+    private var dpad: DpadView? = null
     private var brightness: BrightnessControl? = null
     private val quickMenu by lazy { QuickMenu(this) }
     private val pictureMenu by lazy { PictureMenu(this) }
     private var editing = false
     private var snap = true
+    private var grid = false
     private var design = 0
 
     private val cells = LinkedHashMap<String, Cell>()
@@ -67,11 +74,15 @@ class CustomRemoteActivity : Activity() {
         window.navigationBarColor = Ui.BG
 
         actions = TvActions(this)
-        actions.onStateChanged = { renderState() }
+        actions.onStateChanged = {
+            renderState()
+            followLink()
+        }
         shortcuts = AppShortcuts(this, actions)
         remoteId = CustomRemotes.current(this)
-        layout = CustomLayout.load(this, remoteId)
+        layout = CustomLayout.load(this, remoteId, land)
         snap = AppPrefs.sp(this).getBoolean("custom_snap", true)
+        grid = AppPrefs.sp(this).getBoolean("custom_grid", false)
 
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
@@ -176,6 +187,7 @@ class CustomRemoteActivity : Activity() {
         val target = Prefs.target(this)
         segTv?.let { paintSegment(it, target == Target.TV) }
         segDecoder?.let { paintSegment(it, target == Target.DECODER) }
+        dpad?.badge = if (target == Target.DECODER) "DÉCODEUR" else "TV"
         val state = when (on) {
             true -> "Allumée"
             false -> "En veille"
@@ -278,7 +290,15 @@ class CustomRemoteActivity : Activity() {
         }
         bar.addView(swap, LinearLayout.LayoutParams(dp(38), dp(38)))
 
-        editBtn = barIcon(R.drawable.ic_touch, "Modifier la disposition") { setEditing(!editing) }
+        // Verrou : appui long pour entrer en édition (évite les modifications accidentelles).
+        editBtn = barIcon(R.drawable.ic_touch, "Modifier la disposition (appui long)") {
+            if (editing) setEditing(false) else Ui.toast(this, "Appui long pour modifier la disposition")
+        }
+        editBtn.setOnLongClickListener {
+            it.haptic(HapticFeedbackConstants.LONG_PRESS)
+            setEditing(!editing)
+            true
+        }
         bar.addView(editBtn, LinearLayout.LayoutParams(dp(38), dp(38)))
 
         val menu = barIcon(R.drawable.ic_settings, "Menu") { showMenu() }
@@ -320,7 +340,8 @@ class CustomRemoteActivity : Activity() {
         val name = CustomRemotes.name(this, remoteId)
         val items = arrayOf(
             "Changer de télécommande perso", "Nouvelle télécommande perso", "Dupliquer « $name »",
-            "Renommer « $name »", "Supprimer « $name »",
+            "Renommer « $name »", "Supprimer « $name »", "Exporter « $name »", "Importer une télécommande",
+            "Lier aux appareils (TV / décodeur)…",
             "Réglages", "Télécommande classique", "Télécommande Zen", "Télécommande Edenwood"
         )
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
@@ -332,7 +353,7 @@ class CustomRemoteActivity : Activity() {
                         openRemote(CustomRemotes.create(this, n, null))
                     }
                     2 -> askName("Dupliquer", "$name (copie)") { n ->
-                        CustomLayout.save(this, remoteId, layout)
+                        saveLayout()
                         openRemote(CustomRemotes.create(this, n, remoteId))
                     }
                     3 -> askName("Renommer", name) { n ->
@@ -340,9 +361,12 @@ class CustomRemoteActivity : Activity() {
                         Ui.toast(this, "Renommée : $n")
                     }
                     4 -> confirmDeleteRemote()
-                    5 -> startActivity(Intent(this, MainActivity::class.java))
-                    6 -> switchStyle(Prefs.STYLE_CLASSIC, RemoteActivity::class.java)
-                    7 -> switchStyle(Prefs.STYLE_ZEN, Remote2Activity::class.java)
+                    5 -> exportRemote()
+                    6 -> importRemote()
+                    7 -> linkTargets()
+                    8 -> startActivity(Intent(this, MainActivity::class.java))
+                    9 -> switchStyle(Prefs.STYLE_CLASSIC, RemoteActivity::class.java)
+                    10 -> switchStyle(Prefs.STYLE_ZEN, Remote2Activity::class.java)
                     else -> toEdenwood()
                 }
             }
@@ -358,12 +382,19 @@ class CustomRemoteActivity : Activity() {
             .show()
     }
 
+    private val land: Boolean
+        get() = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
+    private fun saveLayout() = CustomLayout.save(this, remoteId, land, layout)
+
     /** Affiche une autre télécommande perso (la disposition en cours est enregistrée). */
     private fun openRemote(id: String) {
-        CustomLayout.save(this, remoteId, layout)
+        saveLayout()
         remoteId = id
         CustomRemotes.setCurrent(this, id)
-        layout = CustomLayout.load(this, id)
+        layout = CustomLayout.load(this, id, land)
+        undo.clear()
+        redo.clear()
         rebuild()
         Ui.toast(this, CustomRemotes.name(this, id))
     }
@@ -378,11 +409,82 @@ class CustomRemoteActivity : Activity() {
             .setPositiveButton("Supprimer") { _, _ ->
                 CustomRemotes.delete(this, remoteId)
                 remoteId = CustomRemotes.current(this)
-                layout = CustomLayout.load(this, remoteId)
+                layout = CustomLayout.load(this, remoteId, land)
+                undo.clear()
+                redo.clear()
                 rebuild()
             }
             .setNegativeButton("Annuler", null)
             .show()
+    }
+
+    // ------------------------------------------------------------------ export / import
+
+    /** Texte à coller ailleurs (sauvegarde, autre téléphone) : copié et partagé. */
+    private fun exportRemote() {
+        saveLayout()
+        val text = CustomLayout.export(CustomRemotes.name(this, remoteId), layout)
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("Télécommande perso", text))
+        Ui.toast(this, "Disposition copiée")
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+        runCatching { startActivity(Intent.createChooser(send, "Exporter la télécommande")) }
+    }
+
+    private fun importRemote() {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this)?.toString().orEmpty()
+        val field = EditText(this)
+        field.hint = "Coller le texte exporté"
+        if (clip.startsWith(CustomLayout.EXPORT_TAG)) field.setText(clip)
+        field.maxLines = 4
+        val box = FrameLayout(this)
+        box.setPadding(dp(20), dp(8), dp(20), 0)
+        box.addView(field)
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("Importer une télécommande")
+            .setView(box)
+            .setPositiveButton("Importer") { _, _ ->
+                val parsed = CustomLayout.parseExport(field.text.toString().trim())
+                if (parsed == null) {
+                    Ui.toast(this, "Texte non reconnu")
+                } else {
+                    saveLayout()
+                    openRemote(CustomRemotes.createFrom(this, parsed.first, parsed.second))
+                }
+            }
+            .setNegativeButton("Annuler", null)
+            .show()
+    }
+
+    // ------------------------------------------------------------------ télécommande liée à l'appareil visé
+
+    /** Choix : télécommande perso à afficher quand la cible passe sur la TV, puis sur le décodeur. */
+    private fun linkTargets() {
+        val ids = CustomRemotes.ids(this)
+        val labels = (listOf("Aucune (ne pas changer)") + ids.map { CustomRemotes.name(this, it) }).toTypedArray()
+        fun ask(target: Target, title: String, next: () -> Unit) {
+            AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle(title)
+                .setItems(labels) { _, which ->
+                    CustomRemotes.setLink(this, target, if (which == 0) null else ids[which - 1])
+                    next()
+                }
+                .show()
+        }
+        ask(Target.TV, "Cible TV : télécommande") {
+            ask(Target.DECODER, "Cible décodeur : télécommande") {
+                Ui.toast(this, "Liaison enregistrée")
+                followLink()
+            }
+        }
+    }
+
+    /** Si une télécommande est liée à l'appareil visé, on l'affiche (jamais pendant l'édition). */
+    private fun followLink() {
+        if (editing) return
+        val link = CustomRemotes.link(this, Prefs.target(this)) ?: return
+        if (link != remoteId && link in CustomRemotes.ids(this)) openRemote(link)
     }
 
     private fun askName(titleText: String, initial: String, onOk: (String) -> Unit) {
@@ -413,36 +515,54 @@ class CustomRemoteActivity : Activity() {
 
     // ------------------------------------------------------------------ mode édition
 
-    private fun buildEditBar(): LinearLayout {
+    private fun buildEditBar(): View {
         val bar = LinearLayout(this)
         bar.orientation = LinearLayout.HORIZONTAL
         fun add(text: String, action: () -> Unit): TextView {
             val b = Ui.pill(this, text, 12f)
+            b.setPadding(dp(12), 0, dp(12), 0)
             b.setOnClickListener { action() }
-            val lp = LinearLayout.LayoutParams(0, MATCH, 1f)
+            val lp = LinearLayout.LayoutParams(WRAP, MATCH)
             lp.setMargins(dp(3), 0, dp(3), 0)
             bar.addView(b, lp)
             return b
         }
-        add("+ Bloc") { showAddDialog() }
-        add("⇆ Miroir") { mirror() }
-        snapBtn = add("Aimant") { toggleSnap() }
-        paintSnap()
-        add("Défaut") { confirmReset() }
         add("✓ OK") { setEditing(false) }
-        return bar
+        add("+ Bloc") { showAddDialog() }
+        undoBtn = add("↶") { undoStep() }
+        redoBtn = add("↷") { redoStep() }
+        snapBtn = add("Aimant") { toggleSnap() }
+        gridBtn = add("Grille") { toggleGrid() }
+        add("⇆ Miroir") { mirror() }
+        add("Défaut") { confirmReset() }
+        paintToggles()
+        val scroll = android.widget.HorizontalScrollView(this)
+        scroll.isHorizontalScrollBarEnabled = false
+        scroll.addView(bar, ViewGroup.LayoutParams(WRAP, MATCH))
+        return scroll
     }
 
     private fun toggleSnap() {
         snap = !snap
         AppPrefs.sp(this).edit().putBoolean("custom_snap", snap).apply()
-        paintSnap()
+        paintToggles()
         Ui.toast(this, if (snap) "Aide à l'alignement : activée" else "Aide à l'alignement : désactivée")
     }
 
-    private fun paintSnap() {
-        snapBtn.background = Ui.rounded(this, if (snap) Ui.ACCENT else Ui.SURFACE, 18)
-        snapBtn.setTextColor(if (snap) Ui.BG else Ui.TEXT)
+    private fun toggleGrid() {
+        grid = !grid
+        AppPrefs.sp(this).edit().putBoolean("custom_grid", grid).apply()
+        paintToggles()
+        guides.invalidate()
+    }
+
+    private fun paintToggles() {
+        for ((b, on) in listOf(snapBtn to snap, gridBtn to grid)) {
+            b.background = Ui.rounded(this, if (on) Ui.ACCENT else Ui.SURFACE, 18)
+            b.setTextColor(if (on) Ui.BG else Ui.TEXT)
+        }
+        undoBtn.alpha = if (undo.isEmpty()) 0.4f else 1f
+        redoBtn.alpha = if (redo.isEmpty()) 0.4f else 1f
     }
 
     private fun setEditing(on: Boolean) {
@@ -450,34 +570,92 @@ class CustomRemoteActivity : Activity() {
         editBar.visibility = if (on) View.VISIBLE else View.GONE
         editBtn.background = Ui.rounded(this, if (on) Ui.ACCENT_DARK else Color.TRANSPARENT, 22)
         cells.values.forEach { it.showFrame(on) }
+        refreshFrames()
         guides.clear()
-        if (on) Ui.toast(this, "Glisser = déplacer · poignées = taille · toucher = options")
-        else CustomLayout.save(this, remoteId, layout)
+        if (on) {
+            Ui.toast(this, "Glisser = déplacer · poignées = taille · toucher = options")
+        } else {
+            saveLayout()
+            undo.clear()
+            redo.clear()
+            followLink()
+        }
+        paintToggles()
     }
+
+    // ------------------------------------------------------------------ annuler / rétablir
+
+    private val undo = ArrayDeque<String>()
+    private val redo = ArrayDeque<String>()
+
+    /** Mémorise l'état avant une modification (snapshot : état déjà encodé, sinon l'état actuel). */
+    private fun pushUndo(snapshot: String = CustomLayout.encode(layout)) {
+        if (undo.lastOrNull() == snapshot) return
+        undo.addLast(snapshot)
+        while (undo.size > UNDO_MAX) undo.removeFirst()
+        redo.clear()
+        paintToggles()
+    }
+
+    private fun undoStep() {
+        val prev = undo.removeLastOrNull() ?: return
+        redo.addLast(CustomLayout.encode(layout))
+        layout = CustomLayout.decode(prev)
+        rebuild()
+        paintToggles()
+    }
+
+    private fun redoStep() {
+        val next = redo.removeLastOrNull() ?: return
+        undo.addLast(CustomLayout.encode(layout))
+        layout = CustomLayout.decode(next)
+        rebuild()
+        paintToggles()
+    }
+
+    // ------------------------------------------------------------------ ajout de blocs
 
     private fun showAddDialog() {
         val hidden = CustomLayout.DEFS.filter { layout[it.id]?.visible != true }
-        val labels = hidden.map { it.label } + "Touche de la TV…"
+        val labels = hidden.map { it.label } + listOf("Touche de la TV…", "Macro (suite de touches)…", "Chaîne favorite…")
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle("Ajouter un bloc")
             .setItems(labels.toTypedArray()) { _, which ->
-                if (which == hidden.size) {
-                    pickTvKey()
-                    return@setItems
+                when (which - hidden.size) {
+                    0 -> pickTvKey { key -> addExtra(CustomLayout.newKeyId(key, layout.keys), null) }
+                    1 -> editMacro(emptyList()) { steps -> addExtra(CustomLayout.newId("m", layout.keys), steps.joinToString(",")) }
+                    2 -> pickChannel { number, name -> addExtra(CustomLayout.newId("c", layout.keys), number.toString(), name) }
+                    else -> {
+                        pushUndo()
+                        val def = hidden[which]
+                        val item = layout[def.id] ?: CustomLayout.Item(def.id, 0.5f, 0.5f, def.w.toFloat(), def.h.toFloat(), true)
+                        item.visible = true
+                        item.cx = 0.5f
+                        item.cy = 0.5f
+                        layout[def.id] = item
+                        rebuild(def.id)
+                    }
                 }
-                val def = hidden[which]
-                val item = layout[def.id] ?: CustomLayout.Item(def.id, 0.5f, 0.5f, def.w.toFloat(), def.h.toFloat(), true)
-                item.visible = true
-                item.cx = 0.5f
-                item.cy = 0.5f
-                layout[def.id] = item
-                rebuild()
             }
             .show()
     }
 
-    /** Ajoute un bouton pour n'importe quelle touche connue de la TV (Netflix, sous-titres, guide…). */
-    private fun pickTvKey() {
+    private fun addExtra(id: String, data: String?, label: String? = null) {
+        pushUndo()
+        val def = CustomLayout.def(id) ?: return
+        layout[id] = CustomLayout.Item(id, 0.5f, 0.5f, def.w.toFloat(), def.h.toFloat(), true, label = label, data = data)
+        rebuild(id)
+    }
+
+    private var keyCache: List<String>? = null
+
+    /** Liste des touches connues de la TV (Netflix, sous-titres, guide…), lue une fois. */
+    private fun pickTvKey(onKey: (String) -> Unit) {
+        val cached = keyCache
+        if (cached != null) {
+            showKeyList(cached, onKey)
+            return
+        }
         Ui.toast(this, "Lecture des touches de la TV…")
         Bg.run {
             val result = BraviaClient.keyNames(this)
@@ -488,29 +666,87 @@ class CustomRemoteActivity : Activity() {
                     Ui.toast(this, "Touches indisponibles : ${result.exceptionOrNull()?.message ?: "TV injoignable"}")
                     return@runOnUiThread
                 }
-                AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-                    .setTitle("Touche de la TV")
-                    .setItems(names.toTypedArray()) { _, which ->
-                        val id = CustomLayout.newKeyId(names[which], layout.keys)
-                        val def = CustomLayout.def(id)!!
-                        layout[id] = CustomLayout.Item(id, 0.5f, 0.5f, def.w.toFloat(), def.h.toFloat(), true)
-                        rebuild()
-                    }
-                    .show()
+                keyCache = names
+                showKeyList(names, onKey)
             }
         }
     }
 
+    private fun showKeyList(names: List<String>, onKey: (String) -> Unit) {
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("Touche de la TV")
+            .setItems(names.toTypedArray()) { _, which -> onKey(names[which]) }
+            .show()
+    }
+
+    /** Éditeur de macro : touches de la TV et pauses, dans l'ordre. */
+    private fun editMacro(start: List<String>, onDone: (List<String>) -> Unit) {
+        val steps = ArrayList(start)
+        fun summary() = if (steps.isEmpty()) "(vide)" else steps.joinToString(" → ") { s ->
+            CustomLayout.waitOf(s)?.let { "⏱ ${it / 1000.0} s" } ?: s
+        }
+        fun showSteps() {
+            val items = arrayOf("+ Touche de la TV", "+ Pause 1 s", "+ Pause 3 s", "Retirer la dernière étape", "✓ Enregistrer")
+            AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("Macro : ${summary()}")
+                .setItems(items) { _, which ->
+                    when (which) {
+                        0 -> pickTvKey { k -> steps.add(k); showSteps() }
+                        1 -> { steps.add("~1000"); showSteps() }
+                        2 -> { steps.add("~3000"); showSteps() }
+                        3 -> { if (steps.isNotEmpty()) steps.removeAt(steps.size - 1); showSteps() }
+                        else -> if (steps.isEmpty()) Ui.toast(this, "Macro vide") else onDone(steps)
+                    }
+                }
+                .setNegativeButton("Annuler", null)
+                .show()
+        }
+        showSteps()
+    }
+
+    /** Chaîne : une des favorites, ou un numéro saisi. */
+    private fun pickChannel(onPick: (Int, String) -> Unit) {
+        val favs = ChannelPrefs.channels(this)
+        val labels = favs.map { "${it.number}  ·  ${it.name}" } + "Autre numéro…"
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("Chaîne")
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which < favs.size) {
+                    onPick(favs[which].number, favs[which].name)
+                } else {
+                    val field = EditText(this)
+                    field.inputType = InputType.TYPE_CLASS_NUMBER
+                    field.hint = "Numéro"
+                    val box = FrameLayout(this)
+                    box.setPadding(dp(20), dp(8), dp(20), 0)
+                    box.addView(field)
+                    AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                        .setTitle("Numéro de la chaîne")
+                        .setView(box)
+                        .setPositiveButton("OK") { _, _ ->
+                            val n = field.text.toString().toIntOrNull()
+                            if (n != null && n > 0) onPick(n, n.toString())
+                        }
+                        .setNegativeButton("Annuler", null)
+                        .show()
+                }
+            }
+            .show()
+    }
+
     /** Inverse gauche / droite (droitier ⇄ gaucher). */
     private fun mirror() {
+        pushUndo()
         layout.values.forEach { it.cx = 1f - it.cx }
         placeAll()
+        refreshFrames()
     }
 
     private fun confirmReset() {
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
             .setMessage("Revenir à la disposition par défaut ?")
             .setPositiveButton("Oui") { _, _ ->
+                pushUndo()
                 layout = CustomLayout.defaults()
                 rebuild()
             }
@@ -518,31 +754,111 @@ class CustomRemoteActivity : Activity() {
             .show()
     }
 
+    // ------------------------------------------------------------------ options d'un bloc
+
     private fun showItemDialog(id: String) {
         val item = layout[id] ?: return
         val def = CustomLayout.def(id) ?: return
-        val labels = CustomLayout.SCALES.map { "Taille : ${it.first}" } + "Supprimer"
-        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle(def.label)
-            .setItems(labels.toTypedArray()) { _, which ->
-                if (which < CustomLayout.SCALES.size) {
-                    val f = CustomLayout.SCALES[which].second
-                    item.w = def.w * f
-                    item.h = def.h * f
-                } else if (CustomLayout.keyOf(id) != null) {
-                    layout.remove(id) // touche ajoutée : supprimée pour de bon
-                } else {
-                    item.visible = false // bloc d'origine : réajoutable par « + Bloc »
-                }
+        val extra = CustomLayout.isExtra(id)
+        val opts = ArrayList<Pair<String, () -> Unit>>()
+        for ((label, f) in CustomLayout.SCALES) {
+            opts.add("Taille : $label" to {
+                pushUndo()
+                item.w = def.w * f
+                item.h = def.h * f
+                rebuild()
+            })
+        }
+        if (extra) opts.add("Nom, icône et couleur…" to { customize(item) })
+        if (id.startsWith("m.")) opts.add("Modifier les étapes…" to {
+            editMacro(CustomLayout.steps(item)) { steps ->
+                pushUndo()
+                item.data = steps.joinToString(",")
+            }
+        })
+        if (id.startsWith("c.")) opts.add("Changer de chaîne…" to {
+            pickChannel { n, name ->
+                pushUndo()
+                item.data = n.toString()
+                item.label = name
                 rebuild()
             }
+        })
+        opts.add("Supprimer" to {
+            pushUndo()
+            if (extra) {
+                layout.remove(id) // bloc ajouté : supprimé pour de bon
+            } else {
+                item.visible = false // bloc d'origine : réajoutable par « + Bloc »
+            }
+            rebuild()
+        })
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle(item.label ?: def.label)
+            .setItems(opts.map { it.first }.toTypedArray()) { _, which -> opts[which].second() }
             .show()
     }
 
-    private fun rebuild() {
+    /** Nom, puis icône, puis couleur d'un bloc ajouté. */
+    private fun customize(item: CustomLayout.Item) {
+        val def = CustomLayout.def(item.id) ?: return
+        askName("Nom du bouton", item.label ?: def.label) { name ->
+            val icons = CustomLayout.ICONS
+            AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("Icône")
+                .setItems(icons.map { it.first }.toTypedArray()) { _, i ->
+                    val colors = CustomLayout.COLORS
+                    AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                        .setTitle("Couleur")
+                        .setItems(colors.map { it.first }.toTypedArray()) { _, c ->
+                            pushUndo()
+                            item.label = name
+                            item.icon = icons[i].first
+                            item.color = colors[c].second
+                            rebuild()
+                        }
+                        .show()
+                }
+                .show()
+        }
+    }
+
+    // ------------------------------------------------------------------ exécution des blocs ajoutés
+
+    private fun runMacro(item: CustomLayout.Item) {
+        val steps = CustomLayout.steps(item)
+        if (steps.isEmpty()) return
+        actions.runIo {
+            runCatching {
+                for ((i, s) in steps.withIndex()) {
+                    val wait = CustomLayout.waitOf(s)
+                    if (wait != null) Thread.sleep(wait) else {
+                        if (i > 0) Thread.sleep(MACRO_GAP_MS)
+                        BraviaClient.sendIrcc(this, s).getOrThrow()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun runChannel(item: CustomLayout.Item) {
+        val n = item.data?.toIntOrNull() ?: return
+        actions.runIo {
+            val r = Decoder.zap(this, n)
+            actions.notifyStateChanged()
+            r
+        }
+    }
+
+    /** placeNew : bloc qui vient d'être ajouté, posé à la place libre la plus proche du centre. */
+    private fun rebuild(placeNew: String? = null) {
         buildCells()
         cells.values.forEach { it.showFrame(editing) }
-        board.post { placeAll() }
+        board.post {
+            placeAll()
+            placeNew?.let { id -> cells[id]?.let { placeFree(it) } }
+            refreshFrames()
+        }
         renderState()
     }
 
@@ -554,6 +870,7 @@ class CustomRemoteActivity : Activity() {
         segTv = null
         segDecoder = null
         chLabel = null
+        dpad = null
         brightness?.close()
         brightness = null
         for ((id, item) in layout) {
@@ -573,7 +890,9 @@ class CustomRemoteActivity : Activity() {
         val cw = board.width
         val ch = board.height
         if (cw == 0 || ch == 0) return 1f
-        return min(1f, min(cw / dp(REF_W).toFloat(), ch / dp(REF_H).toFloat()))
+        val rw = if (land) REF_H else REF_W
+        val rh = if (land) REF_W else REF_H
+        return min(1f, min(cw / dp(rw).toFloat(), ch / dp(rh).toFloat()))
     }
 
     private val density get() = resources.displayMetrics.density
@@ -608,16 +927,114 @@ class CustomRemoteActivity : Activity() {
     }
 
     /** Fin d'un geste : position (centre, en fractions) et taille (dp) mémorisées. */
-    private fun commit(id: String, cell: Cell, w: Int, h: Int) {
+    private fun commit(id: String, cell: Cell, w: Int, h: Int) = commitAt(id, cell.x, cell.y, w, h)
+
+    private fun commitAt(id: String, x: Float, y: Float, w: Int, h: Int) {
         val item = layout[id] ?: return
         val cw = board.width
         val ch = board.height
         if (cw == 0 || ch == 0) return
-        item.cx = ((cell.x + w / 2f) / cw).coerceIn(0f, 1f)
-        item.cy = ((cell.y + h / 2f) / ch).coerceIn(0f, 1f)
+        item.cx = ((x + w / 2f) / cw).coerceIn(0f, 1f)
+        item.cy = ((y + h / 2f) / ch).coerceIn(0f, 1f)
         val f = fit() * density
         item.w = w / f
         item.h = h / f
+    }
+
+    // ------------------------------------------------------------------ chevauchements
+
+    private fun rectOf(c: Cell): RectF {
+        val lp = c.layoutParams
+        return RectF(c.x, c.y, c.x + lp.width, c.y + lp.height)
+    }
+
+    /** Chevauchement réel (1 px de tolérance : des blocs bord à bord ne se chevauchent pas). */
+    private fun overlaps(a: RectF, b: RectF): Boolean =
+        a.left + 1f < b.right && b.left + 1f < a.right && a.top + 1f < b.bottom && b.top + 1f < a.bottom
+
+    /** Cadre rouge sur chaque bloc qui en chevauche un autre. */
+    private fun refreshFrames() {
+        if (!editing) return
+        val list = cells.values.toList()
+        val rects = list.map { rectOf(it) }
+        val bad = BooleanArray(list.size)
+        for (i in list.indices) for (j in i + 1 until list.size) {
+            if (overlaps(rects[i], rects[j])) { bad[i] = true; bad[j] = true }
+        }
+        list.forEachIndexed { i, c -> c.showFrame(true, bad[i]) }
+    }
+
+    /**
+     * Après un geste : les blocs chevauchés par [active] (qui, lui, reste où on l'a posé)
+     * partent vers la place libre la plus proche, si elle existe.
+     */
+    private fun resolveOverlaps(active: Cell) {
+        val placed = LinkedHashMap<Cell, RectF>()
+        cells.values.forEach { placed[it] = rectOf(it) }
+        val a = placed[active] ?: return
+        val victims = cells.values.filter { it !== active && overlaps(placed[it]!!, a) }.sortedByDescending {
+            val r = RectF(placed[it]!!)
+            if (r.intersect(a)) r.width() * r.height() else 0f
+        }
+        for (v in victims) {
+            val r = placed[v]!!
+            val spot = freeSpot(v, r, placed) ?: continue
+            placed[v] = RectF(spot.x, spot.y, spot.x + r.width(), spot.y + r.height())
+            v.animate().x(spot.x).y(spot.y).setDuration(180).start()
+            commitAt(v.bid, spot.x, spot.y, r.width().toInt(), r.height().toInt())
+        }
+        if (victims.isNotEmpty()) board.postDelayed({ refreshFrames() }, 220) else refreshFrames()
+    }
+
+    /** Place un bloc qui vient d'être ajouté à l'endroit libre le plus proche de sa position. */
+    private fun placeFree(c: Cell) {
+        val placed = LinkedHashMap<Cell, RectF>()
+        cells.values.forEach { placed[it] = rectOf(it) }
+        val r = placed[c] ?: return
+        if (placed.none { (o, orc) -> o !== c && overlaps(r, orc) }) return
+        val spot = freeSpot(c, r, placed) ?: return
+        c.x = spot.x
+        c.y = spot.y
+        commitAt(c.bid, spot.x, spot.y, r.width().toInt(), r.height().toInt())
+    }
+
+    /**
+     * Position libre (coin haut-gauche) la plus proche de [r] pour le bloc [c], ou null.
+     * Candidats : une grille fine, plus les positions collées aux bords des autres blocs.
+     */
+    private fun freeSpot(c: Cell, r: RectF, placed: Map<Cell, RectF>): PointF? {
+        val w = r.width()
+        val h = r.height()
+        val maxX = board.width - w
+        val maxY = board.height - h
+        if (maxX < 0f || maxY < 0f) return null
+        val step = dp(6).toFloat()
+        val xs = HashSet<Float>()
+        val ys = HashSet<Float>()
+        var t = 0f
+        while (t <= maxX) { xs.add(t); t += step }
+        t = 0f
+        while (t <= maxY) { ys.add(t); t += step }
+        xs.add(maxX); ys.add(maxY); xs.add(r.left.coerceIn(0f, maxX)); ys.add(r.top.coerceIn(0f, maxY))
+        for ((o, orc) in placed) {
+            if (o === c) continue
+            for (v in floatArrayOf(orc.right, orc.left - w, orc.left)) if (v in 0f..maxX) xs.add(v)
+            for (v in floatArrayOf(orc.bottom, orc.top - h, orc.top)) if (v in 0f..maxY) ys.add(v)
+        }
+        val others = placed.filterKeys { it !== c }.values.toList()
+        val test = RectF()
+        var best: PointF? = null
+        var bestD = Float.MAX_VALUE
+        for (y in ys) for (x in xs) {
+            val d = (x - r.left) * (x - r.left) + (y - r.top) * (y - r.top)
+            if (d >= bestD) continue
+            test.set(x, y, x + w, y + h)
+            if (others.none { overlaps(test, it) }) {
+                bestD = d
+                best = PointF(x, y)
+            }
+        }
+        return best
     }
 
     // ------------------------------------------------------------------ aide à l'alignement
@@ -630,6 +1047,13 @@ class CustomRemoteActivity : Activity() {
             if (c === except) continue
             xs.add(c.x); xs.add(c.x + c.width / 2f); xs.add(c.x + c.width)
             ys.add(c.y); ys.add(c.y + c.height / 2f); ys.add(c.y + c.height)
+        }
+        if (grid) {
+            val g = dp(GRID_DP).toFloat()
+            var t = g
+            while (t < board.width) { xs.add(t); t += g }
+            t = g
+            while (t < board.height) { ys.add(t); t += g }
         }
         return xs to ys
     }
@@ -693,7 +1117,21 @@ class CustomRemoteActivity : Activity() {
 
         fun clear() = show(emptyList(), emptyList())
 
+        private val dot = Paint(Paint.ANTI_ALIAS_FLAG)
+
         override fun onDraw(c: Canvas) {
+            // Grille facultative (points) en mode édition.
+            if (editing && grid) {
+                dot.color = Color.parseColor("#40FFFFFF")
+                val g = Ui.dp(context, GRID_DP).toFloat()
+                val r = Ui.dp(context, 1).toFloat().coerceAtLeast(1f)
+                var y = g
+                while (y < height) {
+                    var x = g
+                    while (x < width) { c.drawCircle(x, y, r, dot); x += g }
+                    y += g
+                }
+            }
             paint.color = Ui.ACCENT
             for (x in xs) c.drawLine(x, 0f, x, height.toFloat(), paint)
             for (y in ys) c.drawLine(0f, y, width.toFloat(), y, paint)
@@ -706,7 +1144,7 @@ class CustomRemoteActivity : Activity() {
      * Conteneur d'un bloc. En édition, il capte les gestes : glisser = déplacer ; poignée droite = largeur ;
      * poignée basse = hauteur ; poignée d'angle = les deux ; toucher = options (taille, supprimer).
      */
-    private inner class Cell(ctx: Context, val id: String) : FrameLayout(ctx) {
+    private inner class Cell(ctx: Context, val bid: String) : FrameLayout(ctx) {
         private val slop = ViewConfiguration.get(ctx).scaledTouchSlop
         private val grip = Ui.dp(ctx, 26).toFloat()
         private val knob = Ui.dp(ctx, 7).toFloat()
@@ -720,18 +1158,33 @@ class CustomRemoteActivity : Activity() {
         private var startH = 0
         private var mode = NONE
         private var moved = false
+        private var before: String? = null
+        private var lastGx: Float? = null
+        private var lastGy: Float? = null
+
+        /** Guides affichés ; petit retour haptique quand l'aimant accroche une nouvelle ligne. */
+        private fun snapped(gx: Float?, gy: Float?) {
+            if ((gx != null && gx != lastGx) || (gy != null && gy != lastGy)) {
+                haptic(HapticFeedbackConstants.CLOCK_TICK)
+            }
+            lastGx = gx
+            lastGy = gy
+            guides.show(listOfNotNull(gx), listOfNotNull(gy))
+        }
 
         init {
             val m = Ui.dp(ctx, 3)
             setPadding(m, m, m, m)
         }
 
-        fun showFrame(on: Boolean) {
+        /** Cadre d'édition ; rouge (plein) si le bloc en chevauche un autre. */
+        fun showFrame(on: Boolean, overlap: Boolean = false) {
             foreground = if (on) {
                 val g = GradientDrawable()
-                g.setColor(Color.parseColor("#22FFFFFF"))
+                g.setColor(Color.parseColor(if (overlap) "#33FF3B30" else "#22FFFFFF"))
                 g.cornerRadius = Ui.dp(context, 14).toFloat()
-                g.setStroke(Ui.dp(context, 2), Ui.ACCENT, Ui.dp(context, 6).toFloat(), Ui.dp(context, 4).toFloat())
+                if (overlap) g.setStroke(Ui.dp(context, 3), RED)
+                else g.setStroke(Ui.dp(context, 2), Ui.ACCENT, Ui.dp(context, 6).toFloat(), Ui.dp(context, 4).toFloat())
                 g
             } else null
             invalidate()
@@ -775,6 +1228,9 @@ class CustomRemoteActivity : Activity() {
                     startH = height
                     mode = hit(ev.x, ev.y)
                     moved = false
+                    before = CustomLayout.encode(layout)
+                    lastGx = null
+                    lastGy = null
                     bringToFront()
                     box.requestDisallowInterceptTouchEvent(true)
                 }
@@ -791,8 +1247,11 @@ class CustomRemoteActivity : Activity() {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     guides.clear()
-                    if (moved) commit(id, this, layoutParams.width, layoutParams.height)
-                    else if (ev.actionMasked == MotionEvent.ACTION_UP) showItemDialog(id)
+                    if (moved) {
+                        before?.let { pushUndo(it) }
+                        commit(bid, this, layoutParams.width, layoutParams.height)
+                        resolveOverlaps(this)
+                    } else if (ev.actionMasked == MotionEvent.ACTION_UP) showItemDialog(bid)
                     mode = NONE
                 }
             }
@@ -813,7 +1272,8 @@ class CustomRemoteActivity : Activity() {
             }
             x = nx
             y = ny
-            guides.show(listOfNotNull(gx), listOfNotNull(gy))
+            snapped(gx, gy)
+            refreshFrames()
         }
 
         private fun resize(box: ViewGroup, dx: Float, dy: Float) {
@@ -833,7 +1293,8 @@ class CustomRemoteActivity : Activity() {
             lp.width = nw.toInt()
             lp.height = nh.toInt()
             layoutParams = lp
-            guides.show(listOfNotNull(gx), listOfNotNull(gy))
+            snapped(gx, gy)
+            refreshFrames()
         }
     }
 
@@ -844,7 +1305,7 @@ class CustomRemoteActivity : Activity() {
             this,
             onKey = { key, repeat -> actions.key(key, repeat = repeat) },
             onHold = { key, start -> actions.hold(key, start) }
-        )
+        ).also { dpad = it }
         "eco" -> RoundButton.create(
             this, R.drawable.ic_eco, "Économie d'énergie : Haut / Bas",
             onClick = { actions.toggleEco() }, onLongClick = { shortcuts.showDecoderApps() }
@@ -877,9 +1338,29 @@ class CustomRemoteActivity : Activity() {
         "web" -> labeled(R.drawable.ic_language, "Web") { actions.openWeb() }
         "paste" -> labeled(R.drawable.ic_search, "Coller", { Voice.start(this, Voice.TV) }) { actions.pasteClipboard() }
         "more" -> labeled(R.drawable.ic_apps, "Plus") { actions.openMore() }
-        else -> CustomLayout.keyOf(id)?.let { key ->
-            labeled(R.drawable.ic_tune, key) { actions.key(key) }
+        else -> extraButton(id)
+    }
+
+    /** Bloc ajouté : touche de la TV, macro ou chaîne ; nom, icône et couleur personnalisables. */
+    private fun extraButton(id: String): View? {
+        val item = layout[id] ?: return null
+        val key = CustomLayout.keyOf(id)
+        val (defIcon, defLabel) = when {
+            key != null -> R.drawable.ic_tune to key
+            id.startsWith("m.") -> R.drawable.ic_scene to "Macro"
+            id.startsWith("c.") -> R.drawable.ic_tv to (item.data ?: "Chaîne")
+            else -> return null
         }
+        val res = CustomLayout.ICONS.firstOrNull { it.first == item.icon }?.second ?: defIcon
+        val box = labeled(res, item.label ?: defLabel) {
+            when {
+                key != null -> actions.key(key)
+                id.startsWith("m.") -> runMacro(item)
+                else -> runChannel(item)
+            }
+        }
+        item.color?.let { box.background = Ui.rounded(this, it, 26) }
+        return box
     }
 
     // ------------------------------------------------------------------ fabriques (style de la classique)
@@ -1063,6 +1544,11 @@ class CustomRemoteActivity : Activity() {
         const val RESIZE_W = 2
         const val RESIZE_H = 3
         const val RESIZE_BOTH = 4
+        /** Pas de la grille (dp). */
+        const val GRID_DP = 24
+        const val UNDO_MAX = 50
+        const val MACRO_GAP_MS = 350L
+        val RED = Color.parseColor("#FF3B30")
     }
 }
 
@@ -1111,7 +1597,7 @@ object RemotePicker {
     }
 }
 
-/** Liste des télécommandes perso (identifiant, nom) et télécommande affichée. */
+/** Liste des télécommandes perso (identifiant, nom), télécommande affichée et liaisons TV / décodeur. */
 object CustomRemotes {
     private const val IDS = "custom_remotes"
     private const val CURRENT = "custom_remote_current"
@@ -1123,7 +1609,7 @@ object CustomRemotes {
         if (raw.isNullOrBlank()) {
             val legacy = sp(ctx).getString("custom_remote_layout", null)
             val e = sp(ctx).edit().putString(IDS, "1").putString(nameKey("1"), "Perso").putString(CURRENT, "1")
-            if (legacy != null) e.putString(CustomLayout.key("1"), legacy).remove("custom_remote_layout")
+            if (legacy != null) e.putString(CustomLayout.key("1", false), legacy).remove("custom_remote_layout")
             e.apply()
             return listOf("1")
         }
@@ -1148,27 +1634,51 @@ object CustomRemotes {
         sp(ctx).edit().putString(CURRENT, id).apply()
     }
 
-    /** Nouvelle télécommande (copie de [copyFrom], sinon disposition par défaut). Renvoie son identifiant. */
+    /** Nouvelle télécommande (copie de [copyFrom], portrait et paysage, sinon disposition par défaut). */
     fun create(ctx: Context, name: String, copyFrom: String?): String {
         val all = ids(ctx)
         val id = ((all.mapNotNull { it.toIntOrNull() }.maxOrNull() ?: 0) + 1).toString()
         val e = sp(ctx).edit()
             .putString(IDS, (all + id).joinToString(","))
             .putString(nameKey(id), name)
-        if (copyFrom != null) e.putString(CustomLayout.key(id), sp(ctx).getString(CustomLayout.key(copyFrom), "") ?: "")
+        if (copyFrom != null) {
+            for (land in listOf(false, true)) {
+                sp(ctx).getString(CustomLayout.key(copyFrom, land), null)?.let { e.putString(CustomLayout.key(id, land), it) }
+            }
+        }
         e.apply()
+        return id
+    }
+
+    /** Nouvelle télécommande à partir d'une disposition importée. */
+    fun createFrom(ctx: Context, name: String, raw: String): String {
+        val id = create(ctx, name, null)
+        sp(ctx).edit().putString(CustomLayout.key(id, false), raw).apply()
         return id
     }
 
     fun delete(ctx: Context, id: String) {
         val rest = ids(ctx) - id
         if (rest.isEmpty()) return
-        sp(ctx).edit()
+        val e = sp(ctx).edit()
             .putString(IDS, rest.joinToString(","))
             .remove(nameKey(id))
-            .remove(CustomLayout.key(id))
+            .remove(CustomLayout.key(id, false))
+            .remove(CustomLayout.key(id, true))
             .putString(CURRENT, rest.first())
-            .apply()
+        for (t in Target.values()) if (link(ctx, t) == id) e.remove(linkKey(t))
+        e.apply()
+    }
+
+    private fun linkKey(target: Target) = "custom_link_" + if (target == Target.DECODER) "decoder" else "tv"
+
+    /** Télécommande perso à afficher quand la cible est [target] (null : ne pas changer). */
+    fun link(ctx: Context, target: Target): String? = sp(ctx).getString(linkKey(target), null)
+
+    fun setLink(ctx: Context, target: Target, id: String?) {
+        val e = sp(ctx).edit()
+        if (id == null) e.remove(linkKey(target)) else e.putString(linkKey(target), id)
+        e.apply()
     }
 }
 
@@ -1178,10 +1688,34 @@ object CustomLayout {
     /** Bloc disponible : taille de base en dp et position par défaut (centre, en fractions). */
     class Def(val id: String, val label: String, val w: Int, val h: Int, val cx: Float, val cy: Float)
 
-    /** w, h : taille en dp (avant réduction pour petit écran). */
-    class Item(val id: String, var cx: Float, var cy: Float, var w: Float, var h: Float, var visible: Boolean)
+    /**
+     * w, h : taille en dp (avant réduction pour petit écran).
+     * Blocs ajoutés : label, icon (nom dans [ICONS]), color (ARGB), data (macro : étapes ; chaîne : numéro).
+     */
+    class Item(
+        val id: String, var cx: Float, var cy: Float, var w: Float, var h: Float, var visible: Boolean,
+        var label: String? = null, var icon: String? = null, var color: Int? = null, var data: String? = null
+    )
 
     val SCALES = listOf("Petit" to 0.75f, "Normal" to 1f, "Grand" to 1.25f, "Très grand" to 1.5f)
+
+    val ICONS = listOf(
+        "Réglage" to R.drawable.ic_tune, "Lecture" to R.drawable.ic_play, "TV" to R.drawable.ic_tv,
+        "Décodeur" to R.drawable.ic_set_top_box, "Scène" to R.drawable.ic_scene, "Applications" to R.drawable.ic_apps,
+        "Source" to R.drawable.ic_input, "Web" to R.drawable.ic_language, "Recherche" to R.drawable.ic_search,
+        "Accueil" to R.drawable.ic_home, "Minuteur" to R.drawable.ic_timer, "Éco" to R.drawable.ic_eco,
+        "Luminosité" to R.drawable.ic_brightness, "Muet" to R.drawable.ic_mute, "Marche" to R.drawable.ic_power,
+        "Suivant" to R.drawable.ic_next, "Précédent" to R.drawable.ic_prev, "Clavier" to R.drawable.ic_keyboard,
+        "Chiffres" to R.drawable.ic_dialpad, "Historique" to R.drawable.ic_history
+    )
+
+    val COLORS: List<Pair<String, Int?>> = listOf(
+        "Par défaut" to null,
+        "Vert" to Color.parseColor("#1F7A4D"), "Bleu" to Color.parseColor("#2459B8"),
+        "Rouge" to Color.parseColor("#A8322D"), "Orange" to Color.parseColor("#B8661F"),
+        "Violet" to Color.parseColor("#6A3DB8"), "Jaune" to Color.parseColor("#9C8418"),
+        "Gris" to Color.parseColor("#3A4150")
+    )
 
     /** Par défaut : même disposition que la télécommande classique. */
     val DEFS = listOf(
@@ -1207,7 +1741,9 @@ object CustomLayout {
         Def("more", "Plus", 118, 48, 0.833f, 0.93f)
     )
 
-    /** Touche de la TV ajoutée : identifiant « k.<Touche>.<n> ». */
+    /** Bloc ajouté : touche « k.<Touche>.<n> », macro « m.<n> », chaîne « c.<n> ». */
+    fun isExtra(id: String) = id.startsWith("k.") || id.startsWith("m.") || id.startsWith("c.")
+
     fun keyOf(id: String): String? =
         if (id.startsWith("k.")) id.removePrefix("k.").substringBeforeLast('.').ifEmpty { null } else null
 
@@ -1217,21 +1753,53 @@ object CustomLayout {
         return "k.$key.$n"
     }
 
-    fun def(id: String): Def? =
-        DEFS.firstOrNull { it.id == id } ?: keyOf(id)?.let { Def(id, "Touche $it", 118, 48, 0.5f, 0.5f) }
+    fun newId(prefix: String, used: Collection<String>): String {
+        var n = 1
+        while ("$prefix.$n" in used) n++
+        return "$prefix.$n"
+    }
 
-    fun key(remote: String) = "custom_remote_layout_$remote"
+    /** Étapes d'une macro : noms de touches, « ~<ms> » pour une pause. */
+    fun steps(item: Item): List<String> = item.data.orEmpty().split(',').filter { it.isNotBlank() }
+
+    fun waitOf(step: String): Long? = if (step.startsWith("~")) step.drop(1).toLongOrNull() else null
+
+    fun def(id: String): Def? =
+        DEFS.firstOrNull { it.id == id } ?: when {
+            keyOf(id) != null -> Def(id, "Touche ${keyOf(id)}", 118, 48, 0.5f, 0.5f)
+            id.startsWith("m.") -> Def(id, "Macro", 118, 48, 0.5f, 0.5f)
+            id.startsWith("c.") -> Def(id, "Chaîne", 118, 48, 0.5f, 0.5f)
+            else -> null
+        }
+
+    fun key(remote: String, land: Boolean) = "custom_remote_layout_$remote" + if (land) "_land" else ""
 
     fun defaults(): MutableMap<String, Item> =
         DEFS.associateTo(LinkedHashMap<String, Item>()) { it.id to Item(it.id, it.cx, it.cy, it.w.toFloat(), it.h.toFloat(), true) }
 
-    /**
-     * Format : id:cx:cy:w:h:visible;… (ancien format id:cx:cy:échelle:visible accepté).
-     * Blocs inconnus ignorés ; blocs d'origine absents remis à leur place par défaut.
-     */
-    fun load(ctx: Context, remote: String): MutableMap<String, Item> {
+    private const val B64 = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+
+    private fun b64(text: String) = android.util.Base64.encodeToString(text.toByteArray(Charsets.UTF_8), B64)
+
+    private fun unb64(text: String): String? =
+        runCatching { String(android.util.Base64.decode(text, B64), Charsets.UTF_8) }.getOrNull()
+
+    /** Format : id:cx:cy:w:h:visible[:extra base64 JSON];… (ancien format id:cx:cy:échelle:visible accepté). */
+    fun encode(items: Map<String, Item>): String = items.values.joinToString(";") {
+        val base = "${it.id}:${it.cx}:${it.cy}:${it.w}:${it.h}:${if (it.visible) "1" else "0"}"
+        if (it.label == null && it.icon == null && it.color == null && it.data == null) base else {
+            val o = org.json.JSONObject()
+            it.label?.let { v -> o.put("l", v) }
+            it.icon?.let { v -> o.put("i", v) }
+            it.color?.let { v -> o.put("c", v) }
+            it.data?.let { v -> o.put("d", v) }
+            base + ":" + b64(o.toString())
+        }
+    }
+
+    /** Blocs inconnus ignorés ; blocs d'origine absents remis à leur place par défaut. */
+    fun decode(raw: String): MutableMap<String, Item> {
         val map = defaults()
-        val raw = AppPrefs.sp(ctx).getString(key(remote), "") ?: ""
         for (part in raw.split(';')) {
             val f = part.split(':')
             val d = f.firstOrNull()?.let { def(it) } ?: continue
@@ -1242,22 +1810,54 @@ object CustomLayout {
                     val sc = f[3].toFloatOrNull()?.coerceIn(0.5f, 2f) ?: continue
                     Item(d.id, cx, cy, d.w * sc, d.h * sc, f[4] == "1")
                 }
-                6 -> {
-                    val w = f[3].toFloatOrNull()?.coerceIn(24f, 800f) ?: continue
-                    val h = f[4].toFloatOrNull()?.coerceIn(24f, 800f) ?: continue
+                6, 7 -> {
+                    val w = f[3].toFloatOrNull()?.coerceIn(24f, 1200f) ?: continue
+                    val h = f[4].toFloatOrNull()?.coerceIn(24f, 1200f) ?: continue
                     Item(d.id, cx, cy, w, h, f[5] == "1")
                 }
                 else -> continue
+            }
+            if (f.size == 7) {
+                unb64(f[6])?.let { json ->
+                    runCatching {
+                        val o = org.json.JSONObject(json)
+                        item.label = o.optString("l").ifEmpty { null }
+                        item.icon = o.optString("i").ifEmpty { null }
+                        item.color = if (o.has("c")) o.getInt("c") else null
+                        item.data = o.optString("d").ifEmpty { null }
+                    }
+                }
             }
             map[d.id] = item
         }
         return map
     }
 
-    fun save(ctx: Context, remote: String, items: Map<String, Item>) {
-        val raw = items.values.joinToString(";") {
-            "${it.id}:${it.cx}:${it.cy}:${it.w}:${it.h}:${if (it.visible) "1" else "0"}"
-        }
-        AppPrefs.sp(ctx).edit().putString(key(remote), raw).apply()
+    /** Paysage : disposition propre, sinon celle du portrait. */
+    fun load(ctx: Context, remote: String, land: Boolean): MutableMap<String, Item> {
+        val sp = AppPrefs.sp(ctx)
+        val raw = (if (land) sp.getString(key(remote, true), null) else null)
+            ?: sp.getString(key(remote, false), "") ?: ""
+        return decode(raw)
+    }
+
+    fun save(ctx: Context, remote: String, land: Boolean, items: Map<String, Item>) {
+        AppPrefs.sp(ctx).edit().putString(key(remote, land), encode(items)).apply()
+    }
+
+    const val EXPORT_TAG = "ECOTV-PERSO1:"
+
+    /** Texte d'export : étiquette, nom et disposition (base64). */
+    fun export(name: String, items: Map<String, Item>): String = EXPORT_TAG + b64(name) + ":" + b64(encode(items))
+
+    /** (nom, disposition) ou null si le texte n'est pas reconnu. */
+    fun parseExport(text: String): Pair<String, String>? {
+        if (!text.startsWith(EXPORT_TAG)) return null
+        val parts = text.removePrefix(EXPORT_TAG).trim().split(':')
+        if (parts.size != 2) return null
+        val name = unb64(parts[0])?.takeIf { it.isNotBlank() } ?: return null
+        val raw = unb64(parts[1]) ?: return null
+        if (decode(raw).isEmpty()) return null
+        return name to raw
     }
 }

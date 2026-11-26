@@ -32,7 +32,7 @@ class RemoteActivity : Activity() {
     private lateinit var scenes: SceneUi
     private lateinit var segTv: TextView
     private lateinit var segDecoder: TextView
-    private lateinit var dpadView: View
+    private lateinit var dpadView: DpadView
     private lateinit var touchpad: View
     private var brightness: BrightnessControl? = null
     private var volLabel: TextView? = null
@@ -314,6 +314,7 @@ class RemoteActivity : Activity() {
         val on = Prefs.lastPower(this)
         power.on = on
         val target = Prefs.target(this)
+        if (::dpadView.isInitialized) dpadView.badge = if (target == Target.DECODER) "DÉCODEUR" else "TV"
         paintSegment(segTv, target == Target.TV)
         paintSegment(segDecoder, target == Target.DECODER)
         val state = when (on) {

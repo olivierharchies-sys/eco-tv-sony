@@ -49,6 +49,7 @@ class TvActions(private val act: Activity) {
     private class Entry(val label: String, val saved: String?, val run: () -> Result<*>)
 
     fun close() {
+        stopSourceWatch()
         io.shutdown()
         status.shutdown()
     }
@@ -146,6 +147,66 @@ class TvActions(private val act: Activity) {
         PowerWidgetProvider.refreshAll(act)
         SourceWidgetProvider.refreshAll(act)
         ui.post { onStateChanged?.invoke() }
+        pokeSource(SOURCE_POKE_MS)
+    }
+
+    // ------------------------------------------------------------------ cible TV / décodeur
+
+    /** Dernière entrée vue sur la TV : la cible ne change que si l'entrée change (choix manuel respecté). */
+    @Volatile
+    private var lastInput: String? = null
+
+    @Volatile
+    private var watching = false
+
+    /** Cible = décodeur si la TV affiche son entrée HDMI, sinon TV. Renvoie true si la cible a changé. */
+    private fun syncTarget(uri: String): Boolean {
+        val decoderUri = ShortcutPrefs.decoderInputUri(act)
+        if (decoderUri.isEmpty() || uri == lastInput) return false
+        lastInput = uri
+        val next = if (BraviaClient.sameInput(uri, decoderUri)) Target.DECODER else Target.TV
+        if (Prefs.target(act) == next) return false
+        Prefs.saveTarget(act, next)
+        return true
+    }
+
+    private val sourceTick = object : Runnable {
+        override fun run() {
+            if (!watching || act.isFinishing) return
+            execStatus {
+                if (ShortcutPrefs.decoderInputUri(act).isNotEmpty() &&
+                    BraviaClient.getPowerOn(act).getOrNull() == true
+                ) {
+                    val uri = BraviaClient.syncSource(act).getOrNull()
+                    if (uri != null && syncTarget(uri)) {
+                        PowerWidgetProvider.refreshAll(act)
+                        SourceWidgetProvider.refreshAll(act)
+                        ui.post { onStateChanged?.invoke() }
+                    }
+                }
+            }
+            ui.removeCallbacks(this)
+            ui.postDelayed(this, SOURCE_WATCH_MS)
+        }
+    }
+
+    /** Suit la source de la TV tant que la télécommande est à l'écran (changée ailleurs, TV rallumée…). */
+    fun startSourceWatch() {
+        watching = true
+        ui.removeCallbacks(sourceTick)
+        ui.postDelayed(sourceTick, SOURCE_WATCH_MS)
+    }
+
+    fun stopSourceWatch() {
+        watching = false
+        ui.removeCallbacks(sourceTick)
+    }
+
+    /** Relecture anticipée de la source (après un changement fait depuis l'appli). */
+    private fun pokeSource(delayMs: Long) {
+        if (!watching) return
+        ui.removeCallbacks(sourceTick)
+        ui.postDelayed(sourceTick, delayMs)
     }
 
     // ------------------------------------------------------------------ home, web, plus
@@ -191,16 +252,13 @@ class TvActions(private val act: Activity) {
             var synced = r.isSuccess && r.getOrNull() != true // éteinte : rien à recaler
             if (r.getOrNull() == true) {
                 val uri = BraviaClient.syncSource(act).getOrNull()
-                val decoderUri = ShortcutPrefs.decoderInputUri(act)
                 if (uri != null) {
                     synced = true
                     // Profil d'image associé à l'entrée, si l'entrée a changé depuis la dernière ouverture.
                     val auto = Picture.autoApply(act)
                     if (auto != null) ui.post { Ui.toast(act, "Image : $auto") }
-                    if (decoderUri.isNotEmpty()) {
-                        val onDecoder = BraviaClient.sameInput(uri, decoderUri)
-                        Prefs.saveTarget(act, if (onDecoder) Target.DECODER else Target.TV)
-                    }
+                    lastInput = null // ouverture : on recale toujours la cible
+                    syncTarget(uri)
                 }
             }
             if (r.isSuccess) afterChange()
@@ -694,5 +752,7 @@ class TvActions(private val act: Activity) {
         /** Nouveaux essais de resynchronisation quand la TV ne répond pas encore (démarrage). */
         private const val SYNC_RETRIES = 12
         private const val SYNC_RETRY_MS = 5000L
+        private const val SOURCE_WATCH_MS = 6000L
+        private const val SOURCE_POKE_MS = 2000L
     }
 }

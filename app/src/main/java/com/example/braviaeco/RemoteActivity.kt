@@ -1,6 +1,7 @@
 package com.example.braviaeco
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
@@ -69,6 +70,13 @@ class RemoteActivity : Activity() {
         // Télécommande « Zen » choisie : on lui passe la main (widgets et icône arrivent ici).
         if (Prefs.remoteStyle(this) == Prefs.STYLE_ZEN) {
             startActivity(Intent(this, Remote2Activity::class.java))
+            finish()
+            return
+        }
+
+        // Télécommande « Perso » (boutons déplaçables) choisie.
+        if (Prefs.remoteStyle(this) == Prefs.STYLE_CUSTOM) {
+            startActivity(Intent(this, CustomRemoteActivity::class.java))
             finish()
             return
         }
@@ -194,6 +202,7 @@ class RemoteActivity : Activity() {
 
     override fun onPause() {
         RoomSwitch.stop(this)
+        if (::actions.isInitialized) actions.stopSourceWatch()
         // Les autres écrans (réglages…) gardent la palette classique.
         Ui.useBlueTheme(false)
         super.onPause()
@@ -222,6 +231,7 @@ class RemoteActivity : Activity() {
         }
         renderState()
         actions.refreshPower()
+        actions.startSourceWatch()
         refreshInfo(0)
         paintMute()
         if (CallPause.enabled(this)) CallPause.apply(this)
@@ -485,12 +495,18 @@ class RemoteActivity : Activity() {
 
         val swap = icon(R.drawable.ic_swap, Ui.DIM)
         swap.setPadding(dp(9), dp(9), dp(9), dp(9))
-        swap.contentDescription = "Télécommande Zen"
+        swap.contentDescription = "Changer de télécommande"
         swap.background = Ui.rounded(this, Color.TRANSPARENT, 22)
         swap.setOnClickListener {
-            Prefs.saveRemoteStyle(this, Prefs.STYLE_ZEN)
-            startActivity(Intent(this, Remote2Activity::class.java))
-            finish()
+            AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("Télécommande")
+                .setItems(arrayOf("Zen (gestes)", "Perso (boutons déplaçables)")) { _, which ->
+                    val zen = which == 0
+                    Prefs.saveRemoteStyle(this, if (zen) Prefs.STYLE_ZEN else Prefs.STYLE_CUSTOM)
+                    startActivity(Intent(this, if (zen) Remote2Activity::class.java else CustomRemoteActivity::class.java))
+                    finish()
+                }
+                .show()
         }
         bar.addView(swap, LinearLayout.LayoutParams(dp(40), dp(40)))
 

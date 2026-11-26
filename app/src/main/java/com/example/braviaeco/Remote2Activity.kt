@@ -105,6 +105,7 @@ class Remote2Activity : Activity() {
 
     override fun onPause() {
         RoomSwitch.stop(this)
+        if (::actions.isInitialized) actions.stopSourceWatch()
         // Les autres écrans (réglages…) gardent la palette classique.
         Ui.useBlueTheme(false)
         super.onPause()
@@ -133,6 +134,7 @@ class Remote2Activity : Activity() {
         renderState()
         buildTiles()
         actions.refreshPower()
+        actions.startSourceWatch()
         if (KeepAwake.enabled(this)) KeepAwake.apply(this)
     }
 
@@ -207,7 +209,7 @@ class Remote2Activity : Activity() {
             GridItem("Source", "🔌"), GridItem("Clavier", "⌨️"), GridItem("Pavé numérique", "🔢"),
             GridItem("Volume précis", "🔊"), GridItem("Scènes", "🎬"), GridItem("Chaînes favorites", "⭐"),
             GridItem("Page web", "🌐"), GridItem("Toutes les commandes", "🧰"), GridItem("Réglages", "⚙️"),
-            GridItem("Télécommande classique", "📱")
+            GridItem("Télécommande classique", "📱"), GridItem("Télécommande perso", "🧩")
         )
         TileGrid.show(this, "Plus", items) { which ->
                 when (which) {
@@ -220,7 +222,12 @@ class Remote2Activity : Activity() {
                     6 -> actions.openWeb()
                     7 -> actions.openMore()
                     8 -> startActivity(Intent(this, MainActivity::class.java))
-                    else -> switchToClassic()
+                    9 -> switchToClassic()
+                    else -> {
+                        Prefs.saveRemoteStyle(this, Prefs.STYLE_CUSTOM)
+                        startActivity(Intent(this, CustomRemoteActivity::class.java))
+                        finish()
+                    }
                 }
         }
     }

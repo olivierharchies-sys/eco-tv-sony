@@ -88,6 +88,7 @@ object Prefs {
     // --- Télécommande affichée : classique ou « Zen » (gestes)
     const val STYLE_CLASSIC = "classic"
     const val STYLE_ZEN = "zen"
+    const val STYLE_CUSTOM = "custom"
 
     fun remoteStyle(ctx: Context): String = sp(ctx).getString("remote_style", STYLE_CLASSIC) ?: STYLE_CLASSIC
 
